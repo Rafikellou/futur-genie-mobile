@@ -1,0 +1,45 @@
+{
+  "name": "futur-genie-mobile",
+  "version": "1.0.0",
+  "main": "node_modules/expo/AppEntry.js",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web"
+  },
+  "dependencies": {
+    "@expo/metro-runtime": "~5.0.4",
+    "@react-navigation/bottom-tabs": "^6.6.1",
+    "@react-navigation/native": "^6.1.18",
+    "@react-navigation/stack": "^6.4.1",
+    "@supabase/supabase-js": "^2.45.0",
+    "expo": "^53.0.22",
+    "expo-constants": "~17.1.7",
+    "expo-font": "~13.3.2",
+    "expo-linear-gradient": "^14.1.5",
+    "expo-linking": "~7.1.7",
+    "expo-secure-store": "~14.2.4",
+    "expo-splash-screen": "~0.30.10",
+    "expo-status-bar": "~2.2.3",
+    "expo-updates": "~0.28.17",
+    "getenv": "^2.0.0",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "react-native": "0.79.5",
+    "react-native-confetti-cannon": "^1.5.2",
+    "react-native-gesture-handler": "~2.24.0",
+    "react-native-reanimated": "~3.17.4",
+    "react-native-safe-area-context": "5.4.0",
+    "react-native-screens": "~4.11.1",
+    "react-native-web": "^0.20.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.24.0",
+    "@types/node": "^24.3.1",
+    "@types/react": "~19.0.10",
+    "ts-node": "^10.9.2",
+    "typescript": "~5.8.3"
+  },
+  "private": true
+}
