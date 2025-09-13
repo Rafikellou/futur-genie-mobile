@@ -22,7 +22,7 @@ interface Suggestion {
   id: string;
   title: string;
   description: string;
-  type: 'suggestion' | 'bug' | 'feature';
+  type: 'suggestion' | 'bug';
   status: 'pending' | 'reviewed' | 'resolved';
   created_at: string;
 }
@@ -31,7 +31,7 @@ export function SuggestionsScreen() {
   const { profile } = useAuth();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [type, setType] = useState<'suggestion' | 'bug' | 'feature'>('suggestion');
+  const [type, setType] = useState<'suggestion' | 'bug'>('suggestion');
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -114,8 +114,6 @@ export function SuggestionsScreen() {
     switch (suggestionType) {
       case 'bug':
         return 'bug';
-      case 'feature':
-        return 'bulb';
       default:
         return 'chatbubble';
     }
@@ -125,8 +123,6 @@ export function SuggestionsScreen() {
     switch (suggestionType) {
       case 'bug':
         return colors.status.error;
-      case 'feature':
-        return colors.brand.secondary;
       default:
         return colors.status.success;
     }
@@ -154,7 +150,7 @@ export function SuggestionsScreen() {
               color={getTypeColor(item.type)} 
             />
             <Text style={[styles.typeText, { color: getTypeColor(item.type) }]}>
-              {item.type === 'bug' ? 'Bug' : item.type === 'feature' ? 'Fonctionnalité' : 'Suggestion'}
+              {item.type === 'bug' ? 'Bug' : 'Suggestion'}
             </Text>
           </View>
           <Text style={styles.suggestionTitle}>{item.title}</Text>
@@ -193,9 +189,6 @@ export function SuggestionsScreen() {
       >
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Suggestions</Text>
-          <Text style={styles.headerSubtitle}>
-            Aidez-nous à améliorer l'application
-          </Text>
         </View>
 
         <View style={styles.formContainer}>
@@ -205,7 +198,6 @@ export function SuggestionsScreen() {
             {[
               { key: 'suggestion', label: 'Suggestion', icon: 'chatbubble' },
               { key: 'bug', label: 'Bug', icon: 'bug' },
-              { key: 'feature', label: 'Fonctionnalité', icon: 'bulb' },
             ].map((typeOption) => (
               <TouchableOpacity
                 key={typeOption.key}

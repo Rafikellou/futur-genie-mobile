@@ -3,7 +3,8 @@ import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { AuthProvider } from './src/providers/AuthProvider';
 import { AppNavigator } from './src/navigation/AppNavigator';
-import { linkingConfig, initializeLinking } from './src/lib/linking';
+import { initializeLinking } from './src/lib/linking';
+import { navigationRef } from './src/lib/navigationRef';
 
 export default function App() {
   useEffect(() => {
@@ -13,7 +14,7 @@ export default function App() {
 
   return (
     <AuthProvider>
-      <NavigationContainer linking={linkingConfig}>
+      <NavigationContainer ref={navigationRef}>
         <AppNavigator />
         <StatusBar style="auto" />
       </NavigationContainer>

@@ -1,10 +1,12 @@
 import * as Linking from 'expo-linking';
 import { supabase } from './supabase';
+import { navigationRef } from './navigationRef';
+// Validate invitation via Edge Function to avoid RLS issues
 
 const prefix = Linking.createURL('/');
 
 export const linkingConfig = {
-  prefixes: [prefix, 'futurgenie://'],
+  prefixes: [prefix, 'futurgenie://', 'https://app.votredomaine'],
   config: {
     screens: {
       Auth: {
@@ -24,25 +26,39 @@ export const linkingConfig = {
   },
 };
 
-// Handle deep link authentication callback
-export const handleAuthCallback = async (url: string) => {
+// Handle invitation deep link
+export const handleInvitationLink = async (url: string) => {
   try {
-    const { data, error } = await supabase.auth.getSessionFromUrl(url);
+    const parsed = Linking.parse(url);
+    const token = parsed.queryParams?.token as string;
+    const path = parsed.path?.replace(/^\//, '');
     
-    if (error) {
-      console.error('Auth callback error:', error);
-      return { success: false, error };
+    if (!token || path !== 'invite') {
+      return { success: false, error: 'Token manquant dans le lien' };
     }
     
-    if (data.session) {
-      console.log('Auth callback successful');
-      return { success: true, session: data.session };
+    // Validate the invitation token via Edge Function
+    const { data, error } = await supabase.functions.invoke('invitation_preview', {
+      body: { token },
+    });
+    if (error || !data?.ok) {
+      return { success: false, error: "Lien d'invitation invalide" };
     }
-    
-    return { success: false, error: 'No session found' };
+    if (new Date(data.expires_at) < new Date()) {
+      return { success: false, error: "Lien d'invitation expiré" };
+    }
+    return {
+      success: true,
+      invitation: {
+        token: data.token,
+        schoolId: data.school_id,
+        classroomId: data.classroom_id,
+        role: data.intended_role,
+      }
+    };
   } catch (error) {
-    console.error('Auth callback exception:', error);
-    return { success: false, error };
+    console.error('Invitation link error:', error);
+    return { success: false, error: 'Erreur lors de la validation du lien' };
   }
 };
 
@@ -52,11 +68,36 @@ export const initializeLinking = () => {
   const subscription = Linking.addEventListener('url', ({ url }) => {
     console.log('Deep link received:', url);
     
-    // Handle auth callback
-    if (url.includes('futurgenie://auth')) {
-      handleAuthCallback(url);
+    // Handle invitation links for both scheme and universal links
+    const parsed = Linking.parse(url);
+    const path = parsed.path?.replace(/^\//, '');
+    const token = parsed.queryParams?.token as string | undefined;
+    if (path === 'invite' && token) {
+      // Optionally validate before navigation
+      handleInvitationLink(url).finally(() => {
+        if (navigationRef.isReady()) {
+          navigationRef.navigate('Invitation' as never, { url } as never);
+        }
+      });
     }
   });
+
+  // Also handle the initial URL when the app is opened from a cold start
+  Linking.getInitialURL().then((url) => {
+    if (url) {
+      console.log('Initial deep link:', url);
+      const parsed = Linking.parse(url);
+      const path = parsed.path?.replace(/^\//, '');
+      const token = parsed.queryParams?.token as string | undefined;
+      if (path === 'invite' && token) {
+        handleInvitationLink(url).finally(() => {
+          if (navigationRef.isReady()) {
+            navigationRef.navigate('Invitation' as never, { url } as never);
+          }
+        });
+      }
+    }
+  }).catch((e) => console.warn('Error getting initial URL', e));
 
   return () => subscription?.remove();
 };

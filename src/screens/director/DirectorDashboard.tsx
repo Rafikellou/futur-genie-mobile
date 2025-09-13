@@ -10,6 +10,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../providers/AuthProvider';
+import { useNavigation } from '@react-navigation/native';
+import type { DirectorTabsParamList } from '../../navigation/DirectorTabs';
 import { supabase } from '../../lib/supabase';
 import { colors } from '../../theme/colors';
 import { Loader } from '../../components/common/Loader';
@@ -36,7 +38,8 @@ interface Class {
 }
 
 export function DirectorDashboard() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
+  const navigation = useNavigation<any>();
   const [stats, setStats] = useState<SchoolStats | null>(null);
   const [classes, setClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,7 +48,10 @@ export function DirectorDashboard() {
 
   const fetchDashboardData = async () => {
     try {
-      if (!profile?.school_id) {
+      // Use profile.school_id first, fallback to user app_metadata
+      const schoolId = profile?.school_id || user?.app_metadata?.school_id;
+      
+      if (!schoolId) {
         setError('Aucune école assignée');
         return;
       }
@@ -55,21 +61,21 @@ export function DirectorDashboard() {
         supabase
           .from('classrooms')
           .select('id')
-          .eq('school_id', profile.school_id),
+          .eq('school_id', schoolId),
         supabase
           .from('users')
           .select('id')
-          .eq('school_id', profile.school_id)
+          .eq('school_id', schoolId)
           .eq('role', 'TEACHER'),
         supabase
           .from('users')
           .select('id')
-          .eq('school_id', profile.school_id)
+          .eq('school_id', schoolId)
           .eq('role', 'PARENT'),
         supabase
           .from('quizzes')
           .select('id, is_published, classroom_id')
-          .eq('school_id', profile.school_id)
+          .eq('school_id', schoolId)
       ]);
 
       const totalQuizzes = quizzesRes.data?.length || 0;
@@ -95,7 +101,7 @@ export function DirectorDashboard() {
           ),
           quizzes (count)
         `)
-        .eq('school_id', profile.school_id)
+        .eq('school_id', schoolId)
         .order('name');
 
       if (classesError) throw classesError;
@@ -124,7 +130,7 @@ export function DirectorDashboard() {
 
   useEffect(() => {
     fetchDashboardData();
-  }, [profile?.school_id]);
+  }, [profile?.school_id, user?.app_metadata?.school_id]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -237,12 +243,12 @@ export function DirectorDashboard() {
       )}
 
       <View style={styles.actionsContainer}>
-        <TouchableOpacity style={styles.actionButton}>
+        <TouchableOpacity style={styles.actionButton} onPress={() => navigation.navigate('Classes')}>
           <Ionicons name="add-circle-outline" size={24} color="#2563eb" />
           <Text style={styles.actionButtonText}>Ajouter une classe</Text>
         </TouchableOpacity>
         
-        <TouchableOpacity style={styles.actionButton}>
+        <TouchableOpacity style={styles.actionButton} onPress={() => navigation.navigate('Invitations')}>
           <Ionicons name="person-add-outline" size={24} color="#10b981" />
           <Text style={styles.actionButtonText}>Inviter un enseignant</Text>
         </TouchableOpacity>
@@ -277,17 +283,17 @@ const styles = StyleSheet.create({
     padding: 20,
     backgroundColor: colors.background.secondary,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: colors.border.primary,
   },
   welcomeText: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#111827',
+    color: colors.text.primary,
     marginBottom: 4,
   },
   subtitleText: {
     fontSize: 16,
-    color: '#6b7280',
+    color: colors.text.secondary,
   },
   statsContainer: {
     padding: 16,
@@ -327,11 +333,11 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#111827',
+    color: colors.text.primary,
   },
   statTitle: {
     fontSize: 12,
-    color: '#6b7280',
+    color: colors.text.tertiary,
   },
   actionsContainer: {
     flexDirection: 'row',
@@ -348,13 +354,13 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: colors.border.primary,
   },
   actionButtonText: {
     marginLeft: 8,
     fontSize: 14,
     fontWeight: '600',
-    color: '#374151',
+    color: colors.text.secondary,
   },
   classesSection: {
     paddingHorizontal: 16,
@@ -363,7 +369,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#111827',
+    color: colors.text.primary,
     marginBottom: 16,
   },
   classCard: {
@@ -389,7 +395,7 @@ const styles = StyleSheet.create({
   className: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#111827',
+    color: colors.text.primary,
   },
   manageButton: {
     padding: 4,
@@ -399,7 +405,7 @@ const styles = StyleSheet.create({
   },
   teacherName: {
     fontSize: 14,
-    color: '#6b7280',
+    color: colors.text.secondary,
   },
   classStats: {
     flexDirection: 'row',
@@ -412,7 +418,7 @@ const styles = StyleSheet.create({
   },
   classStatText: {
     fontSize: 12,
-    color: '#6b7280',
+    color: colors.text.tertiary,
   },
   emptyContainer: {
     alignItems: 'center',
@@ -422,12 +428,12 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#6b7280',
+    color: colors.text.secondary,
     marginTop: 16,
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#9ca3af',
+    color: colors.text.tertiary,
     marginTop: 4,
   },
 });

@@ -1,81 +1,30 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createStackNavigator } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../providers/AuthProvider';
 import { ActivitiesTab } from '../screens/parent/tabs/ActivitiesTab';
 import { ProgressTab } from '../screens/parent/tabs/ProgressTab';
 import { CommunicationTab } from '../screens/parent/tabs/CommunicationTab';
-import { DirectorDashboard } from '../screens/director/DirectorDashboard';
-import { ProfileScreen } from '../screens/common/ProfileScreen';
 import { ProfileTab } from '../screens/parent/tabs/ProfileTab';
-import { TeacherTabs } from './TeacherTabs';
+import { SupportScreen } from '../screens/parent/SupportScreen';
 import { colors } from '../theme/colors';
 
-export type MainTabsParamList = {
-  Activities?: undefined;
-  Progress?: undefined;
-  Communication?: undefined;
-  Dashboard?: undefined;
+export type ParentTabsParamList = {
+  Activities: undefined;
+  Progress: undefined;
+  Communication: undefined;
   Profile: undefined;
 };
 
-const Tab = createBottomTabNavigator<MainTabsParamList>();
+export type ParentStackParamList = {
+  ParentTabs: undefined;
+  SupportScreen: undefined;
+};
 
-export function MainTabs() {
-  const { profile } = useAuth();
+const Tab = createBottomTabNavigator<ParentTabsParamList>();
+const Stack = createStackNavigator<ParentStackParamList>();
 
-  if (profile?.role === 'TEACHER') {
-    return <TeacherTabs />;
-  }
-
-  // For non-parent roles, use the original dashboard structure
-  if (profile?.role === 'DIRECTOR') {
-    return (
-      <Tab.Navigator
-        screenOptions={({ route }) => ({
-          tabBarIcon: ({ focused, color, size }) => {
-            let iconName: keyof typeof Ionicons.glyphMap;
-
-            if (route.name === 'Dashboard') {
-              iconName = focused ? 'home' : 'home-outline';
-            } else if (route.name === 'Profile') {
-              iconName = focused ? 'person' : 'person-outline';
-            } else {
-              iconName = 'help-outline';
-            }
-
-            return <Ionicons name={iconName} size={size} color={color} />;
-          },
-          tabBarActiveTintColor: colors.brand.primary,
-          tabBarInactiveTintColor: colors.text.tertiary,
-          tabBarStyle: {
-            backgroundColor: colors.background.secondary,
-            borderTopColor: colors.border.primary,
-          },
-          headerStyle: {
-            backgroundColor: colors.background.secondary,
-          },
-          headerTintColor: colors.text.primary,
-          headerTitleStyle: {
-            fontWeight: 'bold',
-          },
-        })}
-      >
-        <Tab.Screen 
-          name="Dashboard" 
-          component={DirectorDashboard} 
-          options={{ title: 'École' }}
-        />
-        <Tab.Screen 
-          name="Profile" 
-          component={ProfileScreen} 
-          options={{ title: 'Profil' }}
-        />
-      </Tab.Navigator>
-    );
-  }
-
-  // For parent role, use the 4-tab structure
+function ParentTabsNavigator() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -137,5 +86,16 @@ export function MainTabs() {
         options={{ title: 'Profil' }}
       />
     </Tab.Navigator>
+  );
+}
+
+export function ParentTabs() {
+  console.log('📱 ParentTabs: Rendering Parent navigation with support screen');
+  
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="ParentTabs" component={ParentTabsNavigator} />
+      <Stack.Screen name="SupportScreen" component={SupportScreen} />
+    </Stack.Navigator>
   );
 }

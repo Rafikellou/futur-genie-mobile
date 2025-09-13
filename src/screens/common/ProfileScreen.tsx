@@ -59,7 +59,7 @@ export function ProfileScreen() {
           <Ionicons name="person-circle" size={80} color="#e5e7eb" />
         </View>
         <Text style={styles.userName}>
-          {profile?.first_name} {profile?.last_name}
+          {profile?.full_name}
         </Text>
         <Text style={styles.userEmail}>{profile?.email}</Text>
         <View style={[styles.roleBadge, { backgroundColor: getRoleColor(profile?.role || '') }]}>
@@ -86,7 +86,7 @@ export function ProfileScreen() {
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>Nom complet</Text>
               <Text style={styles.infoValue}>
-                {profile?.first_name} {profile?.last_name}
+                {profile?.full_name}
               </Text>
             </View>
           </View>
@@ -111,7 +111,7 @@ export function ProfileScreen() {
             </View>
           )}
           
-          {profile?.class_id && (
+          {profile?.classroom_id && (
             <View style={styles.infoRow}>
               <Ionicons name="library-outline" size={20} color="#6b7280" />
               <View style={styles.infoContent}>
@@ -183,7 +183,7 @@ const styles = StyleSheet.create({
   },
   userEmail: {
     fontSize: 16,
-    color: '#6b7280',
+    color: colors.text.secondary,
     marginBottom: 12,
   },
   roleBadge: {
@@ -232,12 +232,12 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 12,
-    color: '#9ca3af',
+    color: colors.text.tertiary,
     marginBottom: 2,
   },
   infoValue: {
     fontSize: 16,
-    color: '#111827',
+    color: colors.text.primary,
     fontWeight: '500',
   },
   actionButton: {
@@ -259,7 +259,7 @@ const styles = StyleSheet.create({
   actionButtonText: {
     flex: 1,
     fontSize: 16,
-    color: '#374151',
+    color: colors.text.primary,
     marginLeft: 12,
   },
   signOutButton: {
@@ -284,6 +284,6 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 12,
-    color: '#9ca3af',
+    color: colors.text.tertiary,
   },
 });

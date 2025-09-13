@@ -10,6 +10,7 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { useAuth } from '../../providers/AuthProvider';
@@ -45,6 +46,22 @@ export function LoginScreen({ navigation }: Props) {
     setLoading(false);
   };
 
+  const handleInviteLink = async () => {
+    try {
+      const text = await Clipboard.getStringAsync();
+      if (text && (text.includes('/invite') || text.includes('invite?'))) {
+        (navigation.getParent() as any)?.navigate('Invitation', { url: text });
+      } else {
+        Alert.alert(
+          "Lien non détecté",
+          "Copiez un lien d'invitation (se terminant par /invite?token=...) puis réessayez."
+        );
+      }
+    } catch (e) {
+      Alert.alert('Erreur', "Impossible d'accéder au presse-papiers");
+    }
+  };
+
   if (loading) {
     return <Loader />;
   }
@@ -58,6 +75,9 @@ export function LoginScreen({ navigation }: Props) {
         <View style={styles.header}>
           <Text style={styles.title}>Futur Génie</Text>
           <Text style={styles.subtitle}>Connectez-vous à votre compte</Text>
+          <Text style={styles.notice}>
+            Seuls les Directeurs créent un compte ici. Enseignants et Parents doivent utiliser un lien d’invitation envoyé par l’école.
+          </Text>
         </View>
 
         <View style={styles.form}>
@@ -96,6 +116,10 @@ export function LoginScreen({ navigation }: Props) {
             </TouchableOpacity>
           </LinearGradient>
 
+          <TouchableOpacity style={styles.inviteButton} onPress={handleInviteLink}>
+            <Text style={styles.inviteButtonText}>J’ai un lien d’invitation</Text>
+          </TouchableOpacity>
+
           <View style={styles.signupContainer}>
             <Text style={styles.signupText}>Pas encore de compte ? </Text>
             <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
@@ -133,6 +157,12 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     textAlign: 'center',
   },
+  notice: {
+    marginTop: 8,
+    fontSize: 13,
+    color: colors.text.tertiary,
+    textAlign: 'center',
+  },
   form: {
     width: '100%',
   },
@@ -166,6 +196,19 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
     fontSize: 18,
     fontWeight: '600',
+  },
+  inviteButton: {
+    marginTop: 12,
+    padding: 14,
+    alignItems: 'center',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border.primary,
+    backgroundColor: colors.background.secondary,
+  },
+  inviteButtonText: {
+    color: colors.brand.primary,
+    fontWeight: '700',
   },
   signupContainer: {
     flexDirection: 'row',

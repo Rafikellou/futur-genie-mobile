@@ -7,6 +7,7 @@ import {
   StyleSheet,
   RefreshControl,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -31,6 +32,24 @@ interface Quiz {
   };
 }
 
+interface GeneratedQuiz {
+  title: string;
+  description: string;
+  questions: QuizQuestion[];
+}
+
+interface QuizQuestion {
+  question: string;
+  choices: QuizChoice[];
+  answer_keys: string[];
+  explanation?: string;
+}
+
+interface QuizChoice {
+  id: string;
+  text: string;
+}
+
 export function TeacherDashboard() {
   const { profile } = useAuth();
   const navigation = useNavigation();
@@ -38,7 +57,8 @@ export function TeacherDashboard() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [editingQuiz, setEditingQuiz] = useState<Quiz | null>(null);
+  const [editingQuiz, setEditingQuiz] = useState<GeneratedQuiz | null>(null);
+  const [loadingQuizData, setLoadingQuizData] = useState(false);
 
   const fetchQuizzes = async () => {
     try {
@@ -118,6 +138,58 @@ export function TeacherDashboard() {
     }
   };
 
+  const fetchQuizData = async (quizId: string): Promise<GeneratedQuiz | null> => {
+    try {
+      setLoadingQuizData(true);
+      
+      const { data, error } = await supabase
+        .from('quizzes')
+        .select(`
+          title,
+          description,
+          quiz_items (
+            question,
+            choices,
+            answer_keys,
+            explanation
+          )
+        `)
+        .eq('id', quizId)
+        .single();
+
+      if (error) throw error;
+
+      if (!data) return null;
+
+      // Transform the data to match GeneratedQuiz interface
+      const generatedQuiz: GeneratedQuiz = {
+        title: data.title,
+        description: data.description,
+        questions: (data.quiz_items || []).map((item: any) => ({
+          question: item.question,
+          choices: item.choices || [],
+          answer_keys: item.answer_keys || [],
+          explanation: item.explanation
+        }))
+      };
+
+      return generatedQuiz;
+    } catch (err) {
+      console.error('Error fetching quiz data:', err);
+      Alert.alert('Erreur', 'Impossible de charger les données du quiz');
+      return null;
+    } finally {
+      setLoadingQuizData(false);
+    }
+  };
+
+  const handleEditQuiz = async (quiz: Quiz) => {
+    const quizData = await fetchQuizData(quiz.id);
+    if (quizData) {
+      setEditingQuiz(quizData);
+    }
+  };
+
   const deleteQuiz = async (quizId: string) => {
     Alert.alert(
       'Supprimer le quiz',
@@ -184,9 +256,14 @@ export function TeacherDashboard() {
           <View style={styles.actionButtons}>
             <TouchableOpacity
               style={[styles.actionButton, styles.editButton]}
-              onPress={() => setEditingQuiz(item)}
+              onPress={() => handleEditQuiz(item)}
+              disabled={loadingQuizData}
             >
-              <Ionicons name="pencil" size={16} color="#2563eb" />
+              {loadingQuizData ? (
+                <ActivityIndicator size="small" color="#2563eb" />
+              ) : (
+                <Ionicons name="pencil" size={16} color="#2563eb" />
+              )}
             </TouchableOpacity>
             
             <TouchableOpacity
@@ -268,7 +345,9 @@ export function TeacherDashboard() {
           quiz={editingQuiz}
           visible={!!editingQuiz}
           onClose={() => setEditingQuiz(null)}
-          onSave={() => {
+          onSave={async (quiz: GeneratedQuiz, isPublished: boolean, actionType: 'draft' | 'publish') => {
+            // Here you would implement the save logic to update the quiz in the database
+            // For now, just close the modal and refresh
             setEditingQuiz(null);
             fetchQuizzes();
           }}

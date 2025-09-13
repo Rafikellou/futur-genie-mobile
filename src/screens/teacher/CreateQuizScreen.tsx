@@ -100,6 +100,62 @@ export function CreateQuizScreen() {
 
   const generateQuiz = async (lessonDescription: string) => {
     try {
+      // Schéma JSON strict pour le quiz
+      const quizSchema = {
+        type: "object",
+        additionalProperties: false,
+        required: ["title", "description", "questions"],
+        properties: {
+          title: { type: "string" },
+          description: { type: "string" },
+          questions: {
+            type: "array",
+            minItems: 10,
+            maxItems: 10,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["question", "choices", "answer_keys"],
+              properties: {
+                question: { type: "string" },
+                choices: {
+                  type: "array",
+                  minItems: 4,
+                  maxItems: 4,
+                  items: {
+                    type: "object",
+                    additionalProperties: false,
+                    required: ["id", "text"],
+                    properties: {
+                      id: { type: "string", enum: ["A", "B", "C", "D"] },
+                      text: { type: "string" }
+                    }
+                  }
+                },
+                answer_keys: {
+                  type: "array",
+                  minItems: 1,
+                  maxItems: 1,
+                  items: { type: "string", enum: ["A", "B", "C", "D"] }
+                },
+                explanation: { type: "string" }
+              }
+            }
+          }
+        }
+      };
+
+      const instructions = `Tu es un expert en pédagogie Montessori. Crée un quiz éducatif de 10 questions basé sur la description de leçon fournie. Chaque question doit avoir 4 choix de réponse (A, B, C, D) avec une seule bonne réponse.
+
+**Distribuez les bonnes réponses de manière aléatoire et de maniére à ce que chaque position (A, B, C, D) soit la réponse correcte au moins deux fois sur les 10 questions.**
+
+Format de sortie strict en JSON : {"title": "Titre", "description": "Description", "questions": [{"question": "...", "choices": [{"id": "A", "text": "..."}, {"id": "B", "text": "..."}, {"id": "C", "text": "..."}, {"id": "D", "text": "..."}], "answer_keys": ["LETTRE_CORRECTE"], "explanation": "..."}]}.
+
+Le quiz doit être en français, avec des explications pédagogiques.`;
+
+      const input = `Sujet du cours: ${lessonDescription.trim()}`;
+
+      // Appel direct à l'API OpenAI Chat Completions (plus stable)
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -108,80 +164,130 @@ export function CreateQuizScreen() {
         },
         body: JSON.stringify({
           model: 'gpt-4o-mini',
+          temperature: 0.3,
+          max_tokens: 1500,
           messages: [
             {
               role: 'system',
-              content: [
-                {
-                  type: 'text',
-                  text: `Génère un quiz de 10 questions à choix multiples basé sur cette leçon: "${lessonDescription}". 
-                  
-Règles CRITIQUES pour la distribution des bonnes réponses:
-                  - OBLIGATOIRE: Sur les 10 questions, la bonne réponse doit être distribuée de façon équilibrée:
-                    * 2-3 bonnes réponses en position A
-                    * 2-3 bonnes réponses en position B  
-                    * 2-3 bonnes réponses en position C
-                    * 2-3 bonnes réponses en position D
-                  - INTERDIT: Mettre plus de 3 bonnes réponses sur la même position
-                  - INTERDIT: Mettre les bonnes réponses toujours en début (A,B) ou fin (C,D)
-                  - VÉRIFICATION: Compte bien que chaque position (A,B,C,D) a au moins 2 bonnes réponses
-                  
-Format de réponse OBLIGATOIRE (JSON strict):
-                  {
-                    "title": "Titre du quiz",
-                    "description": "Description courte",
-                    "questions": [
-                      {
-                        "question": "Question 1?",
-                        "choices": [
-                          {"id": "A", "text": "Réponse A"},
-                          {"id": "B", "text": "Réponse B"},
-                          {"id": "C", "text": "Réponse C"},
-                          {"id": "D", "text": "Réponse D"}
-                        ],
-                        "answer_keys": ["A"],
-                        "explanation": "Explication de la bonne réponse"
-                      }
-                    ]
-                  }
-                  
-Règle IMPORTANTE: Réponds UNIQUEMENT avec le JSON, aucun autre texte.`
-                }
-              ]
+              content: instructions
             },
             {
               role: 'user',
-              content: `Crée un quiz sur: ${lessonDescription}`
+              content: input
             }
           ],
-          temperature: 0.7,
-          max_tokens: 2000,
+          response_format: {
+            type: 'json_schema',
+            json_schema: { name: 'GeneratedQuiz', schema: quizSchema }
+          }
         }),
       });
 
-      if (!response.ok) {
-        throw new Error(`Erreur API: ${response.status}`);
-      }
+      let retryCount = 0;
+      const maxRetries = 3;
 
-      const data = await response.json();
-      const quizContent = data.choices[0].message.content;
-      
-      try {
-        const quiz: GeneratedQuiz = JSON.parse(quizContent);
-        return quiz;
-      } catch (parseError) {
-        throw new Error('Erreur de format de réponse');
+      while (retryCount < maxRetries) {
+        try {
+          const rawResponse = await response.text();
+
+          if (!response.ok) {
+            console.error('OpenAI API error:', response.status, rawResponse);
+            throw new Error(`OpenAI API error: ${response.status} - ${rawResponse}`);
+          }
+
+          try {
+            const data = JSON.parse(rawResponse);
+            console.log('Raw OpenAI response:', data);
+            
+            // Extraction de la réponse Chat Completions
+            const quizContent = data?.choices?.[0]?.message?.content ?? '';
+            console.log('Quiz content from GPT:', quizContent);
+            
+            if (!quizContent) {
+              throw new Error('Réponse vide du modèle OpenAI');
+            }
+
+            // Vérifier si la réponse est tronquée
+            if (data?.choices?.[0]?.finish_reason === 'length') {
+              console.warn('Response was truncated due to max_tokens limit');
+              throw new Error('Réponse tronquée - augmentation des tokens nécessaire');
+            }
+
+            // Parser le JSON contenu dans la réponse
+            let quiz;
+            try {
+              quiz = JSON.parse(quizContent);
+            } catch (innerJsonError) {
+              console.error('Failed to parse inner JSON:', innerJsonError);
+              console.error('Invalid inner JSON content:', quizContent);
+              throw new Error('Le contenu JSON retourné par GPT est invalide ou incomplet');
+            }
+
+            // Vérifier que le quiz a bien 10 questions
+            if (!quiz.questions || quiz.questions.length !== 10) {
+              throw new Error(`Quiz incomplet: ${quiz.questions?.length || 0} questions au lieu de 10`);
+            }
+
+            // Normaliser le format des choices (gérer objet ou tableau)
+            quiz.questions = quiz.questions.map((question: any) => {
+              if (question.choices && typeof question.choices === 'object' && !Array.isArray(question.choices)) {
+                // Convertir objet en tableau
+                question.choices = Object.entries(question.choices).map(([id, text]) => ({
+                  id,
+                  text: text as string
+                }));
+              }
+              
+              // Vérifier que choices est maintenant un tableau
+              if (!Array.isArray(question.choices)) {
+                question.choices = [];
+              }
+              
+              // Vérifier que answer_keys est un tableau
+              if (!Array.isArray(question.answer_keys)) {
+                question.answer_keys = [];
+              }
+              
+              return question;
+            });
+
+            console.log('Successfully parsed and normalized quiz:', quiz);
+            return quiz as GeneratedQuiz;
+          } catch (jsonError) {
+            console.error(`JSON parsing error (attempt ${retryCount + 1}):`, jsonError);
+            console.error('Invalid JSON response:', rawResponse);
+            
+            if (retryCount < maxRetries - 1) {
+              // Wait for 1 second before retrying
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            } else {
+              throw new Error('Failed to parse JSON response after multiple attempts');
+            }
+          }
+        } catch (error) {
+          retryCount++;
+          if (retryCount >= maxRetries) {
+            console.error('Quiz generation failed:', error);
+            Alert.alert(
+              'Erreur',
+              'Échec de la génération du quiz. Veuillez réessayer.'
+            );
+            setIsGenerating(false);
+            return;
+          }
+        }
       }
     } catch (error) {
       console.error('Erreur génération quiz:', error);
       if (error instanceof Error) {
-        if (error.message.includes('401')) {
-          throw new Error('Clé API OpenAI invalide ou expirée');
-        } else if (error.message.includes('429')) {
-          throw new Error('Limite de requêtes atteinte. Veuillez réessayer plus tard.');
-        } else if (error.message.includes('network')) {
-          throw new Error('Problème de connexion réseau');
+        if (error.message.includes('400')) {
+          throw new Error('Requête mal formée - vérifiez le format JSON et les paramètres');
+        } else if (error.message.includes('401')) {
+          throw new Error('Clé API invalide ou modèle non disponible');
+        } else if (error.message.includes('404')) {
+          throw new Error('Modèle gpt-5-mini introuvable - vérifiez son nom exact');
         }
+        throw new Error('Erreur lors de la génération du quiz: ' + error.message);
       }
       throw new Error('Erreur lors de la génération du quiz');
     }
@@ -207,9 +313,9 @@ Règle IMPORTANTE: Réponds UNIQUEMENT avec le JSON, aucun autre texte.`
         addMessage('Je génère un quiz basé sur votre leçon...', false);
         
         const quiz = await generateQuiz(message);
-        setGeneratedQuiz(quiz);
+        setGeneratedQuiz(quiz ?? null);
         
-        addMessage(`J'ai créé un quiz "${quiz.title}" avec ${quiz.questions.length} questions pour vous :`, false, quiz);
+        addMessage(`J'ai créé un quiz "${quiz?.title}" avec ${quiz?.questions.length} questions pour vous :`, false, quiz);
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
@@ -246,7 +352,7 @@ Règle IMPORTANTE: Réponds UNIQUEMENT avec le JSON, aucun autre texte.`
 
       if (quizError) throw quizError;
 
-      // Create quiz items (questions) - remove explanation as it doesn't exist in DB
+      // Create quiz items (questions) - including explanation
       const quizItems = quiz.questions.map((question, index) => ({
         quiz_id: quizData.id,
         school_id: profile.school_id,
@@ -254,6 +360,7 @@ Règle IMPORTANTE: Réponds UNIQUEMENT avec le JSON, aucun autre texte.`
         question: question.question,
         choices: question.choices,
         answer_keys: question.answer_keys,
+        explanation: question.explanation,
         order_index: index
       }));
 
@@ -349,18 +456,18 @@ Règle IMPORTANTE: Réponds UNIQUEMENT avec le JSON, aucun autre texte.`
                   <View style={styles.quizContainer}>
                     {/* Quiz Header */}
                     <View style={styles.quizHeader}>
-                      <Text style={styles.quizTitle}>📝 {message.quiz.title}</Text>
-                      <Text style={styles.quizDescription}>{message.quiz.description}</Text>
+                      <Text style={styles.quizTitle}>📝 {message.quiz?.title}</Text>
+                      <Text style={styles.quizDescription}>{message.quiz?.description}</Text>
                       <View style={styles.quizMeta}>
-                        <Text style={styles.quizMetaText}>📊 {message.quiz.questions.length} questions</Text>
-                        <Text style={styles.quizMetaText}>⏱️ ~{Math.ceil(message.quiz.questions.length * 1.5)} min</Text>
+                        <Text style={styles.quizMetaText}>📊 {message.quiz?.questions.length} questions</Text>
+                        <Text style={styles.quizMetaText}>⏱️ ~{Math.ceil(message.quiz?.questions.length * 1.5)} min</Text>
                       </View>
                     </View>
 
                     {/* Questions List */}
                     <View style={styles.questionsSection}>
                       <Text style={styles.sectionTitle}>📋 Questions du quiz</Text>
-                      {message.quiz.questions.map((question, index) => (
+                      {message.quiz?.questions.map((question, index) => (
                         <View key={index} style={styles.questionItem}>
                           <Text style={styles.questionNumber}>Question {index + 1}</Text>
                           <Text style={styles.questionText}>{question.question}</Text>

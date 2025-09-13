@@ -44,10 +44,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('🔄 Initial session check:', session ? 'Session exists' : 'No session');
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchProfile(session.user.id);
+        console.log('👤 Initial user:', session.user.id, 'metadata:', session.user.user_metadata);
+        ensureUserRow(session.user).then(() => fetchProfile(session.user!.id));
       } else {
         setLoading(false);
       }
@@ -55,20 +57,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('🔔 Auth state change:', event, session ? `User: ${session.user?.id}` : 'No session');
+      if (session?.user) {
+        console.log('📋 User metadata:', session.user.user_metadata);
+        console.log('📋 App metadata:', session.user.app_metadata);
+      }
+      
       setSession(session);
       setUser(session?.user ?? null);
       
       if (session?.user) {
+        console.log('⏳ Starting ensureUserRow and fetchProfile...');
+        await ensureUserRow(session.user);
         await fetchProfile(session.user.id);
       } else {
         setProfile(null);
         setLoading(false);
       }
 
-      // Store session in secure store
-      if (session) {
-        await SecureStore.setItemAsync('supabase_session', JSON.stringify(session));
-      } else {
+      // We avoid storing the entire session in SecureStore to prevent size limit warnings.
+      if (!session) {
         await SecureStore.deleteItemAsync('supabase_session');
       }
     });
@@ -76,21 +84,85 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
+  const ensureUserRow = async (authUser: User) => {
+    try {
+      console.log('🔍 ensureUserRow: Checking if user exists in database:', authUser.id);
+      
+      // Check if user row exists
+      const { data: existing, error: selError } = await supabase
+        .from('users')
+        .select('id, role, school_id')
+        .eq('id', authUser.id)
+        .maybeSingle();
+        
+      if (selError) {
+        console.error('❌ ensureUserRow select error:', selError);
+      } else {
+        console.log('✅ ensureUserRow result:', existing ? `User exists with role: ${existing.role}` : 'User does not exist in database');
+      }
+      
+      if (existing) return;
+
+      // For directors created via SignUpScreen, the profile will be created by director_onboarding_complete
+      // For other users (teachers/parents), they should come via invitation which handles profile creation
+      // So we don't need to create a profile here - just log and return
+      console.log('⚠️ User profile will be created by appropriate Edge Function (director_onboarding_complete or invitation_consume)');
+      
+    } catch (e) {
+      console.error('💥 ensureUserRow unexpected error:', e);
+    }
+  };
+
   const fetchProfile = async (userId: string) => {
     try {
-      const { data, error } = await supabase.rpc('get_user_profile', {
+      console.log('🔍 fetchProfile: Starting profile fetch for user:', userId);
+      
+      // Try RPC first
+      console.log('📞 Attempting RPC get_user_profile...');
+      const { data: rpcData, error: rpcError } = await supabase.rpc('get_user_profile', {
         user_id_input: userId,
       });
 
-      if (error) {
-        console.error('Error fetching profile via RPC:', error);
+      if (rpcError || !rpcData || rpcData.length === 0) {
+        if (rpcError) {
+          console.error('❌ RPC get_user_profile error:', rpcError);
+        } else {
+          console.log('⚠️ RPC succeeded but returned empty result:', rpcData);
+        }
+        
+        // Fallback to direct table query
+        console.log('🔄 Falling back to direct users table query');
+        const { data: directData, error: directError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', userId)
+          .maybeSingle();
+          
+        if (directError) {
+          console.error('❌ Direct users query error:', directError);
+          console.log('🚫 Setting profile to null due to direct query error');
+          setProfile(null);
+        } else {
+          console.log('✅ Direct query succeeded, data:', directData);
+          setProfile(directData);
+        }
       } else {
-        // The RPC function returns an array, and we expect a single profile
-        setProfile(data && data.length > 0 ? data[0] : null);
+        console.log('✅ RPC succeeded, data:', rpcData);
+        const profileData = rpcData && rpcData.length > 0 ? rpcData[0] : null;
+        console.log('📋 Processed profile data:', profileData || 'No profile data');
+        setProfile(profileData);
+        
+        // If no profile found but user exists, it might be a new director
+        // whose profile will be created by director_onboarding_complete
+        if (!profileData) {
+          console.log('⚠️ No profile found via RPC - user might be in onboarding process');
+        }
       }
     } catch (error) {
-      console.error('Error fetching profile:', error);
+      console.error('💥 fetchProfile unexpected error:', error);
+      setProfile(null);
     } finally {
+      console.log('🏁 fetchProfile completed, setting loading to false');
       setLoading(false);
     }
   };
@@ -111,6 +183,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         data: {
           first_name: firstName,
           last_name: lastName,
+          role: 'DIRECTOR',
         },
       },
     });

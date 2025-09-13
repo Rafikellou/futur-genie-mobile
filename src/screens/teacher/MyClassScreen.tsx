@@ -6,10 +6,15 @@ import {
   StyleSheet,
   RefreshControl,
   TouchableOpacity,
+  Alert,
+  ScrollView,
+  Share,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../providers/AuthProvider';
 import { supabase } from '../../lib/supabase';
+import { ensureParentInvitationLink, generateInvitationUrl, getClassroomById } from '../../lib/database';
 import { Loader } from '../../components/common/Loader';
 import { ErrorView } from '../../components/common/ErrorView';
 import { colors } from '../../theme/colors';
@@ -26,6 +31,19 @@ interface Student {
   average_time_minutes: number;
 }
 
+interface InvitationLink {
+  id: string;
+  token: string;
+  expires_at: string;
+  created_at: string;
+}
+
+interface ClassroomInfo {
+  id: string;
+  name: string;
+  grade: string;
+}
+
 type SortField = 'name' | 'quizzes' | 'score' | 'time';
 type SortOrder = 'asc' | 'desc';
 
@@ -37,6 +55,20 @@ export function MyClassScreen() {
   const [error, setError] = useState<string | null>(null);
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
+  const [invitationLink, setInvitationLink] = useState<InvitationLink | null>(null);
+  const [classroomInfo, setClassroomInfo] = useState<ClassroomInfo | null>(null);
+  const [generatingLink, setGeneratingLink] = useState(false);
+
+  const fetchClassroomInfo = async () => {
+    try {
+      if (!profile?.classroom_id) return;
+      
+      const classroom = await getClassroomById(profile.classroom_id);
+      setClassroomInfo(classroom);
+    } catch (err) {
+      console.error('Error fetching classroom info:', err);
+    }
+  };
 
   const fetchStudents = async () => {
     try {
@@ -159,13 +191,61 @@ export function MyClassScreen() {
     setStudents(sorted);
   };
 
+  const generateInvitationLink = async () => {
+    if (!profile?.classroom_id || !profile?.school_id) {
+      Alert.alert('Erreur', 'Informations de classe manquantes');
+      return;
+    }
+
+    setGeneratingLink(true);
+    try {
+      const link = await ensureParentInvitationLink(
+        profile.classroom_id,
+        profile.school_id,
+        profile.id
+      );
+      setInvitationLink(link);
+    } catch (err) {
+      console.error('Error generating invitation link:', err);
+      Alert.alert('Erreur', 'Impossible de générer le lien d\'invitation');
+    } finally {
+      setGeneratingLink(false);
+    }
+  };
+
+  const copyInvitationLink = async () => {
+    if (!invitationLink) return;
+    
+    const url = generateInvitationUrl(invitationLink.token);
+    await Clipboard.setStringAsync(url);
+    Alert.alert('Copié', 'Le lien d\'invitation a été copié dans le presse-papiers');
+  };
+
+  const shareInvitationLink = async () => {
+    if (!invitationLink || !classroomInfo) return;
+    
+    const url = generateInvitationUrl(invitationLink.token);
+    const message = `Rejoignez la classe ${classroomInfo.name} (${classroomInfo.grade}) sur Futur Génie !\n\nUtilisez ce lien pour inscrire votre enfant :\n${url}`;
+    
+    try {
+      await Share.share({
+        message,
+        title: 'Invitation à rejoindre la classe',
+      });
+    } catch (err) {
+      console.error('Error sharing:', err);
+    }
+  };
+
   useEffect(() => {
     fetchStudents();
+    fetchClassroomInfo();
   }, []);
 
   const onRefresh = () => {
     setRefreshing(true);
     fetchStudents();
+    fetchClassroomInfo();
   };
 
   const renderSortHeader = () => (
@@ -235,27 +315,103 @@ export function MyClassScreen() {
     return <ErrorView message={error} onRetry={fetchStudents} />;
   }
 
+  const renderInvitationSection = () => (
+    <View style={styles.invitationSection}>
+      <View style={styles.invitationHeader}>
+        <Ionicons name="link-outline" size={24} color={colors.brand.primary} />
+        <Text style={styles.invitationTitle}>Lien d'invitation</Text>
+      </View>
+      
+      <Text style={styles.invitationDescription}>
+        Partagez ce lien avec les parents pour qu'ils puissent inscrire leurs enfants dans votre classe.
+      </Text>
+      
+      {invitationLink ? (
+        <View style={styles.linkContainer}>
+          <View style={styles.linkInfo}>
+            <Text style={styles.linkUrl} numberOfLines={1}>
+              {generateInvitationUrl(invitationLink.token)}
+            </Text>
+            <Text style={styles.linkExpiry}>
+              Expire le {new Date(invitationLink.expires_at).toLocaleDateString('fr-FR')}
+            </Text>
+          </View>
+          
+          <View style={styles.linkActions}>
+            <TouchableOpacity 
+              style={styles.actionButton} 
+              onPress={copyInvitationLink}
+            >
+              <Ionicons name="copy-outline" size={20} color={colors.brand.primary} />
+              <Text style={styles.actionButtonText}>Copier</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.actionButton} 
+              onPress={shareInvitationLink}
+            >
+              <Ionicons name="share-outline" size={20} color={colors.brand.primary} />
+              <Text style={styles.actionButtonText}>Partager</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : (
+        <TouchableOpacity 
+          style={styles.generateButton} 
+          onPress={generateInvitationLink}
+          disabled={generatingLink}
+        >
+          {generatingLink ? (
+            <Text style={styles.generateButtonText}>Génération...</Text>
+          ) : (
+            <>
+              <Ionicons name="add-circle-outline" size={20} color="white" />
+              <Text style={styles.generateButtonText}>Générer le lien</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+
   return (
-    <View style={styles.container}>
+    <ScrollView 
+      style={styles.container}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+      }
+    >
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Ma Classe</Text>
+        {classroomInfo && (
+          <Text style={styles.headerSubtitle}>
+            {classroomInfo.name} - {classroomInfo.grade}
+          </Text>
+        )}
         <Text style={styles.headerSubtitle}>
           {students?.length || 0} élève(s) dans votre classe
         </Text>
       </View>
 
-      {renderSortHeader()}
+      {renderInvitationSection()}
 
-      <FlatList
-        data={students || []}
-        renderItem={renderStudentItem}
-        keyExtractor={(item) => item.id}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        contentContainerStyle={styles.listContainer}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
+      <View style={styles.studentsSection}>
+        <Text style={styles.sectionTitle}>Liste des élèves</Text>
+        
+        {renderSortHeader()}
+
+        {students && students.length > 0 ? (
+          students.map((student) => (
+            <View key={student.id} style={styles.studentRow}>
+              <Text style={styles.studentName}>
+                {student.child_first_name || student.full_name}
+              </Text>
+              <Text style={styles.statValue}>{student.quizzes_taken}</Text>
+              <Text style={styles.statValue}>{student.average_score}%</Text>
+              <Text style={styles.statValue}>{student.average_time_minutes}min</Text>
+            </View>
+          ))
+        ) : (
           <View style={styles.emptyContainer}>
             <Ionicons name="people-outline" size={64} color={colors.text.tertiary} />
             <Text style={styles.emptyText}>Aucun élève dans votre classe</Text>
@@ -263,9 +419,9 @@ export function MyClassScreen() {
               Les élèves apparaîtront ici une fois qu'ils auront rejoint votre classe
             </Text>
           </View>
-        }
-      />
-    </View>
+        )}
+      </View>
+    </ScrollView>
   );
 }
 
@@ -358,5 +514,99 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     textAlign: 'center',
     lineHeight: 24,
+  },
+  invitationSection: {
+    margin: 16,
+    padding: 20,
+    backgroundColor: colors.background.secondary,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  invitationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  invitationTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text.primary,
+    marginLeft: 8,
+  },
+  invitationDescription: {
+    fontSize: 14,
+    color: colors.text.secondary,
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  linkContainer: {
+    backgroundColor: colors.background.primary,
+    borderRadius: 8,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.border.primary,
+  },
+  linkInfo: {
+    marginBottom: 12,
+  },
+  linkUrl: {
+    fontSize: 14,
+    fontFamily: 'monospace',
+    color: colors.brand.primary,
+    backgroundColor: colors.background.tertiary,
+    padding: 8,
+    borderRadius: 4,
+    marginBottom: 4,
+  },
+  linkExpiry: {
+    fontSize: 12,
+    color: colors.text.tertiary,
+  },
+  linkActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    backgroundColor: colors.background.tertiary,
+  },
+  actionButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.brand.primary,
+    marginLeft: 4,
+  },
+  generateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.brand.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  generateButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'white',
+    marginLeft: 8,
+  },
+  studentsSection: {
+    margin: 16,
+    marginTop: 0,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text.primary,
+    marginBottom: 16,
   },
 });

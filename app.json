@@ -6,6 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "sdkVersion": "54.0.0",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
@@ -19,7 +20,10 @@
       "bundleIdentifier": "com.futurgenie.mobile",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "associatedDomains": [
+        "applinks:app.votredomaine"
+      ]
     },
     "android": {
       "adaptiveIcon": {
@@ -30,8 +34,22 @@
     },
     "web": {},
     "scheme": "futurgenie",
+    "linking": {
+      "prefixes": ["futurgenie://", "https://app.votredomaine"],
+      "config": {
+        "screens": {
+          "Auth": {
+            "screens": {
+              "Invitation": "invite"
+            }
+          }
+        }
+      }
+    },
     "plugins": [
-      "expo-secure-store"
+      "expo-font",
+      "expo-secure-store",
+      "expo-dev-client"
     ],
     "extra": {
       "eas": {

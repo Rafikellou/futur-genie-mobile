@@ -132,7 +132,7 @@ export function ParentDashboard() {
             
             {/* Test visuel forcé */}
             <View style={[styles.questionOption, {backgroundColor: '#2A2A2A'}]}>
-              <Text style={{color: '#FFFFFF', fontSize: 16}}>
+              <Text style={styles.text}>
                 Exemple de question (test)
               </Text>
             </View>
@@ -147,12 +147,7 @@ export function ParentDashboard() {
               return (
                 <View key={i} style={styles.questionOption}>
                   <Text 
-                    style={{
-                      color: '#FFFFFF', // Blanc forcé
-                      fontSize: 16,
-                      fontWeight: '500',
-                      backgroundColor: 'transparent' // Éviter tout conflit
-                    }}
+                    style={styles.text}
                     testID={`question-${i}-text`}
                   >
                     {q.text || 'Texte non disponible'}
@@ -197,7 +192,9 @@ export function ParentDashboard() {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Ionicons name="document-outline" size={64} color="#9ca3af" />
-            <Text style={styles.emptyText}>Aucun quiz disponible</Text>
+            <Text style={styles.emptyText}>
+              Aucun quiz disponible
+            </Text>
             <Text style={styles.emptySubtext}>
               Les nouveaux quiz apparaîtront ici
             </Text>
@@ -222,12 +219,12 @@ const styles = StyleSheet.create({
   welcomeText: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#ffffff', // Primary text
+    color: 'white', // Primary text
     marginBottom: 4,
   },
   subtitleText: {
     fontSize: 16,
-    color: '#e2e8f0', // Secondary text
+    color: 'white', // Secondary text
   },
   listContainer: {
     padding: 16,
@@ -261,18 +258,18 @@ const styles = StyleSheet.create({
   quizTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#ffffff', // Blanc pur
+    color: 'white', // Blanc pur
     marginBottom: 4,
   },
   quizDescription: {
     fontSize: 14,
-    color: '#e2e8f0', // Gris clair (#E0E0E0)
+    color: 'white', // Gris clair (#E0E0E0)
     marginBottom: 8,
     lineHeight: 20, // Ajout pour meilleure lisibilité
   },
   teacherName: {
     fontSize: 12,
-    color: '#ff9900', // Orange pastel pour un peu de couleur
+    color: 'white', // Orange pastel pour un peu de couleur
     fontStyle: 'italic',
   },
   statusContainer: {
@@ -293,7 +290,7 @@ const styles = StyleSheet.create({
   },
   dateText: {
     fontSize: 12,
-    color: '#94a3b8', // Tertiary text
+    color: 'white', // Tertiary text
   },
   actionButton: {
     paddingHorizontal: 16,
@@ -306,7 +303,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   actionButtonText: {
-    color: '#ffffff',
+    color: 'white',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -318,25 +315,28 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#e2e8f0', // Secondary text
+    color: 'white', // Secondary text
     marginTop: 16,
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#94a3b8', // Tertiary text
+    color: 'white', // Tertiary text
     marginTop: 4,
   },
   optionText: { 
     fontSize: 16,
-    color: '#ffffff', // Blanc
+    color: 'white', // Blanc
     paddingVertical: 12,
   },
   questionOption: {
     fontSize: 16,
-    color: '#ffffff', // Blanc
+    color: 'white', // Blanc
     padding: 12,
     backgroundColor: '#475569', // Tertiary background
     borderRadius: 8,
     marginVertical: 4,
+  },
+  text: {
+    color: 'white',
   }
 });

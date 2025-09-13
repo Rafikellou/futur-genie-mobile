@@ -178,6 +178,41 @@ export interface Database {
           quiz_duration_seconds?: number | null;
         };
       };
+      invitation_links: {
+        Row: {
+          id: string;
+          token: string;
+          school_id: string;
+          classroom_id: string;
+          intended_role: 'PARENT' | 'TEACHER';
+          created_by: string | null;
+          expires_at: string;
+          used_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          token: string;
+          school_id: string;
+          classroom_id: string;
+          intended_role: 'PARENT' | 'TEACHER';
+          created_by?: string | null;
+          expires_at: string;
+          used_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          token?: string;
+          school_id?: string;
+          classroom_id?: string;
+          intended_role?: 'PARENT' | 'TEACHER';
+          created_by?: string | null;
+          expires_at?: string;
+          used_at?: string | null;
+          created_at?: string;
+        };
+      };
     };
   };
 }
