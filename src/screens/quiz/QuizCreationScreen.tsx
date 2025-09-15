@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../providers/AuthProvider';
-import { supabase } from '../../lib/supabase';
+import { aiGenerateQuizBySubject, createLegacyQuiz } from '../../lib/db';
 import { colors } from '../../theme/colors';
 import { Loader } from '../../components/common/Loader';
 
@@ -42,32 +42,18 @@ export function QuizCreationScreen({ navigation }: any) {
 
     setGeneratingQuiz(true);
     try {
-      const response = await fetch('/api/ai/generate-quiz', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          subject,
-          level,
-          questionCount: 5,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Erreur lors de la génération du quiz');
-      }
-
-      const data = await response.json();
-      
-      setTitle(data.title || `Quiz ${subject} - ${level}`);
-      setDescription(data.description || `Quiz généré automatiquement sur ${subject}`);
-      setQuestions(data.questions || []);
+      const quiz = await aiGenerateQuizBySubject({ subject, level, questionCount: 5 });
+      setTitle(quiz.title || `Quiz ${subject} - ${level}`);
+      setDescription(quiz.description || `Quiz généré automatiquement sur ${subject}`);
+      setQuestions((quiz as any).questions || []);
       
       Alert.alert('Succès', 'Quiz généré avec succès !');
-    } catch (error) {
-      console.error('Error generating quiz:', error);
-      Alert.alert('Erreur', 'Impossible de générer le quiz. Veuillez réessayer.');
+    } catch (error: any) {
+      const status = error?.status;
+      const message = error?.message || (error instanceof Error ? error.message : 'Erreur inconnue');
+      const contextBody = error?.context?.body;
+      console.error('EF error', status, message, contextBody);
+      Alert.alert('Erreur', `Erreur génération (${status ?? 'n/a'}) : ${message}`);
     } finally {
       setGeneratingQuiz(false);
     }
@@ -100,7 +86,7 @@ export function QuizCreationScreen({ navigation }: any) {
       return;
     }
 
-    if (!profile?.class_id) {
+    if (!profile?.classroom_id) {
       Alert.alert('Erreur', 'Aucune classe assignée');
       return;
     }
@@ -117,18 +103,13 @@ export function QuizCreationScreen({ navigation }: any) {
 
     setLoading(true);
     try {
-      const { error } = await supabase
-        .from('quizzes')
-        .insert({
-          title,
-          description,
-          questions,
-          class_id: profile.class_id,
-          teacher_id: profile.id,
-          is_published: false,
-        });
-
-      if (error) throw error;
+      await createLegacyQuiz({
+        title,
+        description,
+        questions,
+        class_id: profile.classroom_id,
+        teacher_id: profile.id,
+      });
 
       Alert.alert(
         'Succès',

@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../providers/AuthProvider';
 import { colors } from '../../theme/colors';
 import { supabase } from '../../lib/supabase';
-import { ensureParentInvitationLink, ensureTeacherInvitationLink, generateInvitationUrl, revokeInvitationForClassRole } from '../../lib/database';
+import { ensureParentInvitationLink, ensureTeacherInvitationLink, generateInvitationUrl, revokeInvitationForClassRole } from '../../lib/db';
 
 interface Classroom {
   id: string;

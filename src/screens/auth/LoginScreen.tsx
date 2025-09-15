@@ -9,14 +9,16 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Image,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import { LinearGradient } from 'expo-linear-gradient';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { useAuth } from '../../providers/AuthProvider';
 import { AuthStackParamList } from '../../navigation/AuthStack';
 import { Loader } from '../../components/common/Loader';
-import { colors, gradients } from '../../theme/colors';
+import { GradientButton } from '../../components/common/GradientButton';
+import { colors } from '../../theme/colors';
+import { commonStyles } from '../../theme/styles';
 
 type LoginScreenNavigationProp = StackNavigationProp<AuthStackParamList, 'Login'>;
 
@@ -50,7 +52,16 @@ export function LoginScreen({ navigation }: Props) {
     try {
       const text = await Clipboard.getStringAsync();
       if (text && (text.includes('/invite') || text.includes('invite?'))) {
-        (navigation.getParent() as any)?.navigate('Invitation', { url: text });
+        const match = /[?&]token=([^&]+)/.exec(text);
+        const token = match?.[1];
+        if (token) {
+          navigation.navigate('InviteEntry' as any, { token });
+        } else {
+          Alert.alert(
+            'Lien invalide',
+            "Le lien d'invitation ne contient pas de token valide."
+          );
+        }
       } else {
         Alert.alert(
           "Lien non détecté",
@@ -68,26 +79,36 @@ export function LoginScreen({ navigation }: Props) {
 
   return (
     <KeyboardAvoidingView 
-      style={styles.container} 
+      style={commonStyles.container} 
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Futur Génie</Text>
-          <Text style={styles.subtitle}>Connectez-vous à votre compte</Text>
-          <Text style={styles.notice}>
-            Seuls les Directeurs créent un compte ici. Enseignants et Parents doivent utiliser un lien d’invitation envoyé par l’école.
-          </Text>
+        <View style={commonStyles.headerContainer}>
+          {/* Logo placeholder - vous pouvez ajouter votre logo ici */}
+          <View style={styles.logoContainer}>
+            <View style={styles.logoPlaceholder}>
+              <Text style={styles.logoText}>🔥</Text>
+            </View>
+          </View>
+          
+          <Text style={commonStyles.title}>Futur Génie</Text>
+          <Text style={commonStyles.subtitle}>Connectez-vous à votre compte</Text>
+          <View style={styles.noticeContainer}>
+            <Text style={styles.notice}>
+              Seuls les Directeurs créent un compte ici. Enseignants et Parents doivent utiliser un lien d'invitation envoyé par l'école.
+            </Text>
+          </View>
         </View>
 
-        <View style={styles.form}>
+        <View style={commonStyles.formContainer}>
           <View style={styles.inputContainer}>
-            <Text style={styles.label}>Email</Text>
+            <Text style={commonStyles.label}>Email</Text>
             <TextInput
-              style={styles.input}
+              style={[commonStyles.input, styles.input]}
               value={email}
               onChangeText={setEmail}
               placeholder="votre@email.com"
+              placeholderTextColor={colors.text.placeholder}
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
@@ -95,35 +116,32 @@ export function LoginScreen({ navigation }: Props) {
           </View>
 
           <View style={styles.inputContainer}>
-            <Text style={styles.label}>Mot de passe</Text>
+            <Text style={commonStyles.label}>Mot de passe</Text>
             <TextInput
-              style={styles.input}
+              style={[commonStyles.input, styles.input]}
               value={password}
               onChangeText={setPassword}
               placeholder="••••••••"
+              placeholderTextColor={colors.text.placeholder}
               secureTextEntry
             />
           </View>
 
-          <LinearGradient
-            colors={gradients.primary}
+          <GradientButton
+            title="Se connecter"
+            onPress={handleLogin}
+            variant="primary"
             style={styles.loginButton}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          >
-            <TouchableOpacity style={styles.loginButtonInner} onPress={handleLogin}>
-              <Text style={styles.loginButtonText}>Se connecter</Text>
-            </TouchableOpacity>
-          </LinearGradient>
+          />
 
-          <TouchableOpacity style={styles.inviteButton} onPress={handleInviteLink}>
-            <Text style={styles.inviteButtonText}>J’ai un lien d’invitation</Text>
+          <TouchableOpacity style={[commonStyles.secondaryButton, styles.inviteButton]} onPress={handleInviteLink}>
+            <Text style={commonStyles.secondaryButtonText}>J'ai un lien d'invitation</Text>
           </TouchableOpacity>
 
           <View style={styles.signupContainer}>
             <Text style={styles.signupText}>Pas encore de compte ? </Text>
             <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
-              <Text style={styles.signupLink}>S'inscrire</Text>
+              <Text style={[commonStyles.accentText, styles.signupLink]}>S'inscrire</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -133,95 +151,68 @@ export function LoginScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background.primary,
-  },
   scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 40,
   },
-  header: {
+  logoContainer: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 24,
   },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: colors.brand.primary,
-    marginBottom: 8,
+  logoPlaceholder: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: colors.background.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...commonStyles.shadow,
   },
-  subtitle: {
-    fontSize: 16,
-    color: colors.text.secondary,
-    textAlign: 'center',
+  logoText: {
+    fontSize: 40,
+  },
+  noticeContainer: {
+    backgroundColor: colors.background.secondary,
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.accent.pink,
   },
   notice: {
-    marginTop: 8,
-    fontSize: 13,
-    color: colors.text.tertiary,
+    fontSize: 14,
+    color: colors.text.secondary,
     textAlign: 'center',
-  },
-  form: {
-    width: '100%',
+    lineHeight: 20,
+    fontFamily: 'Inter-Regular',
   },
   inputContainer: {
     marginBottom: 20,
   },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text.primary,
-    marginBottom: 8,
-  },
   input: {
-    borderWidth: 1,
-    borderColor: colors.border.primary,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    backgroundColor: colors.background.secondary,
-    color: colors.text.primary,
+    // Styles additionnels si nécessaire
   },
   loginButton: {
-    borderRadius: 8,
-    marginTop: 20,
-  },
-  loginButtonInner: {
-    padding: 16,
-    alignItems: 'center',
-  },
-  loginButtonText: {
-    color: colors.text.primary,
-    fontSize: 18,
-    fontWeight: '600',
+    marginTop: 8,
+    marginBottom: 16,
   },
   inviteButton: {
-    marginTop: 12,
-    padding: 14,
-    alignItems: 'center',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border.primary,
-    backgroundColor: colors.background.secondary,
-  },
-  inviteButtonText: {
-    color: colors.brand.primary,
-    fontWeight: '700',
+    marginBottom: 24,
   },
   signupContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 20,
+    alignItems: 'center',
   },
   signupText: {
     fontSize: 16,
     color: colors.text.secondary,
+    fontFamily: 'Inter-Regular',
   },
   signupLink: {
     fontSize: 16,
-    color: colors.brand.primary,
     fontWeight: '600',
   },
 });

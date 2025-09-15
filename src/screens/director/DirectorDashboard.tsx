@@ -9,13 +9,16 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../providers/AuthProvider';
 import { useNavigation } from '@react-navigation/native';
 import type { DirectorTabsParamList } from '../../navigation/DirectorTabs';
 import { supabase } from '../../lib/supabase';
-import { colors } from '../../theme/colors';
+import { colors, gradients } from '../../theme/colors';
+import { commonStyles } from '../../theme/styles';
 import { Loader } from '../../components/common/Loader';
 import { ErrorView } from '../../components/common/ErrorView';
+import { GradientButton } from '../../components/common/GradientButton';
 
 interface SchoolStats {
   totalClasses: number;
@@ -137,16 +140,21 @@ export function DirectorDashboard() {
     fetchDashboardData();
   };
 
-  const StatCard = ({ title, value, icon, color }: {
+  const StatCard = ({ title, value, icon, gradientColors }: {
     title: string;
     value: number;
     icon: keyof typeof Ionicons.glyphMap;
-    color: string;
+    gradientColors: string[];
   }) => (
-    <View style={styles.statCard}>
-      <View style={[styles.statIcon, { backgroundColor: color }]}>
+    <View style={[commonStyles.card, styles.statCard]}>
+      <LinearGradient
+        colors={gradientColors as any}
+        style={styles.statIcon}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
         <Ionicons name={icon} size={24} color="#fff" />
-      </View>
+      </LinearGradient>
       <View style={styles.statInfo}>
         <Text style={styles.statValue}>{value}</Text>
         <Text style={styles.statTitle}>{title}</Text>
@@ -155,30 +163,43 @@ export function DirectorDashboard() {
   );
 
   const ClassCard = ({ item }: { item: Class }) => (
-    <View style={styles.classCard}>
+    <View style={[commonStyles.card, styles.classCard]}>
       <View style={styles.classHeader}>
-        <Text style={styles.className}>{item.name}</Text>
+        <View style={styles.classNameContainer}>
+          <Text style={styles.className}>{item.name}</Text>
+          {!item.teacher && (
+            <View style={styles.warningBadge}>
+              <Text style={styles.warningText}>Sans enseignant</Text>
+            </View>
+          )}
+        </View>
         <TouchableOpacity style={styles.manageButton}>
-          <Ionicons name="settings-outline" size={20} color="#6b7280" />
+          <Ionicons name="settings-outline" size={20} color={colors.text.secondary} />
         </TouchableOpacity>
       </View>
       
       <View style={styles.classInfo}>
         <Text style={styles.teacherName}>
           {item.teacher 
-            ? item.teacher.full_name
-            : 'Aucun enseignant assigné'
+            ? `👨‍🏫 ${item.teacher.full_name}`
+            : '⚠️ Aucun enseignant assigné'
           }
         </Text>
         
         <View style={styles.classStats}>
           <View style={styles.classStat}>
-            <Ionicons name="people-outline" size={16} color="#6b7280" />
-            <Text style={styles.classStatText}>{item._count.students} élèves</Text>
+            <View style={styles.statBadge}>
+              <Ionicons name="people-outline" size={14} color={colors.accent.pink} />
+              <Text style={styles.classStatText}>{item._count.students}</Text>
+            </View>
+            <Text style={styles.statLabel}>élèves</Text>
           </View>
           <View style={styles.classStat}>
-            <Ionicons name="document-text-outline" size={16} color="#6b7280" />
-            <Text style={styles.classStatText}>{item._count.quizzes} quiz</Text>
+            <View style={styles.statBadge}>
+              <Ionicons name="document-text-outline" size={14} color={colors.accent.orange} />
+              <Text style={styles.classStatText}>{item._count.quizzes}</Text>
+            </View>
+            <Text style={styles.statLabel}>quiz</Text>
           </View>
         </View>
       </View>
@@ -200,14 +221,22 @@ export function DirectorDashboard() {
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }
     >
-      <View style={styles.header}>
-        <Text style={styles.welcomeText}>
-          Bonjour {profile?.full_name?.split(' ')[0] || 'Directeur'} !
-        </Text>
-        <Text style={styles.subtitleText}>
-          Tableau de bord de votre école
-        </Text>
-      </View>
+      <LinearGradient
+        colors={[colors.background.primary, colors.background.secondary]}
+        style={styles.header}
+      >
+        <View style={styles.welcomeContainer}>
+          <Text style={styles.welcomeText}>
+            Bonjour {profile?.full_name?.split(' ')[0] || 'Directeur'} ! 👋
+          </Text>
+          <Text style={styles.subtitleText}>
+            Tableau de bord de votre école
+          </Text>
+        </View>
+        <View style={styles.headerIcon}>
+          <Ionicons name="school" size={32} color={colors.accent.pink} />
+        </View>
+      </LinearGradient>
 
       {stats && (
         <View style={styles.statsContainer}>
@@ -216,13 +245,13 @@ export function DirectorDashboard() {
               title="Classes"
               value={stats.totalClasses}
               icon="school-outline"
-              color="#2563eb"
+              gradientColors={[colors.accent.violet, colors.accent.pink]}
             />
             <StatCard
               title="Enseignants"
               value={stats.totalTeachers}
               icon="person-outline"
-              color="#10b981"
+              gradientColors={[colors.accent.pink, colors.accent.orange]}
             />
           </View>
           <View style={styles.statsRow}>
@@ -230,43 +259,64 @@ export function DirectorDashboard() {
               title="Parents"
               value={stats.totalParents}
               icon="people-outline"
-              color="#f59e0b"
+              gradientColors={[colors.accent.orange, '#FFB347']}
             />
             <StatCard
               title="Quiz publiés"
               value={stats.publishedQuizzes}
               icon="document-text-outline"
-              color="#8b5cf6"
+              gradientColors={[...gradients.primary]}
             />
           </View>
         </View>
       )}
 
       <View style={styles.actionsContainer}>
-        <TouchableOpacity style={styles.actionButton} onPress={() => navigation.navigate('Classes')}>
-          <Ionicons name="add-circle-outline" size={24} color="#2563eb" />
-          <Text style={styles.actionButtonText}>Ajouter une classe</Text>
-        </TouchableOpacity>
+        <GradientButton
+          title="➕ Ajouter une classe"
+          onPress={() => navigation.navigate('Classes')}
+          variant="secondary"
+          style={styles.actionButton}
+        />
         
-        <TouchableOpacity style={styles.actionButton} onPress={() => navigation.navigate('Invitations')}>
-          <Ionicons name="person-add-outline" size={24} color="#10b981" />
-          <Text style={styles.actionButtonText}>Inviter un enseignant</Text>
-        </TouchableOpacity>
+        <GradientButton
+          title="👥 Inviter un enseignant"
+          onPress={() => navigation.navigate('Invitations')}
+          variant="tertiary"
+          style={styles.actionButton}
+        />
       </View>
 
       <View style={styles.classesSection}>
-        <Text style={styles.sectionTitle}>Classes de l'école</Text>
+        <View style={styles.sectionHeader}>
+          <Text style={commonStyles.sectionTitle}>Classes de l'école</Text>
+          <View style={styles.classesBadge}>
+            <Text style={styles.classesBadgeText}>{classes.length}</Text>
+          </View>
+        </View>
+        
         {classes.map((cls) => (
           <ClassCard key={cls.id} item={cls} />
         ))}
         
         {classes.length === 0 && (
           <View style={styles.emptyContainer}>
-            <Ionicons name="school-outline" size={64} color="#9ca3af" />
+            <LinearGradient
+              colors={[colors.background.secondary, colors.background.tertiary]}
+              style={styles.emptyIconContainer}
+            >
+              <Ionicons name="school-outline" size={48} color={colors.accent.pink} />
+            </LinearGradient>
             <Text style={styles.emptyText}>Aucune classe créée</Text>
             <Text style={styles.emptySubtext}>
-              Commencez par créer votre première classe
+              Commencez par créer votre première classe pour inviter des enseignants et parents
             </Text>
+            <GradientButton
+              title="Créer ma première classe"
+              onPress={() => navigation.navigate('Classes')}
+              variant="primary"
+              style={styles.emptyButton}
+            />
           </View>
         )}
       </View>
@@ -281,22 +331,36 @@ const styles = StyleSheet.create({
   },
   header: {
     padding: 20,
-    backgroundColor: colors.background.secondary,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.primary,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  welcomeContainer: {
+    flex: 1,
   },
   welcomeText: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: '600',
+    fontFamily: 'Poppins-SemiBold',
     color: colors.text.primary,
     marginBottom: 4,
   },
   subtitleText: {
     fontSize: 16,
+    fontFamily: 'Inter-Regular',
     color: colors.text.secondary,
   },
+  headerIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: colors.background.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...commonStyles.shadow,
+  },
   statsContainer: {
-    padding: 16,
+    padding: 20,
   },
   statsRow: {
     flexDirection: 'row',
@@ -305,19 +369,9 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: colors.background.secondary,
-    borderRadius: 12,
-    padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    padding: 16,
   },
   statIcon: {
     width: 48,
@@ -332,108 +386,152 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: '600',
+    fontFamily: 'Poppins-SemiBold',
     color: colors.text.primary,
   },
   statTitle: {
     fontSize: 12,
-    color: colors.text.tertiary,
+    fontFamily: 'Inter-Medium',
+    color: colors.text.secondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   actionsContainer: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     gap: 12,
     marginBottom: 20,
   },
   actionButton: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.background.secondary,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border.primary,
-  },
-  actionButtonText: {
-    marginLeft: 8,
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text.secondary,
   },
   classesSection: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingBottom: 20,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.text.primary,
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 16,
   },
-  classCard: {
-    backgroundColor: colors.background.secondary,
+  classesBadge: {
+    backgroundColor: colors.accent.pink,
     borderRadius: 12,
-    padding: 16,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  classesBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+    fontFamily: 'Inter-SemiBold',
+  },
+  classCard: {
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
   },
   classHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 12,
   },
+  classNameContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   className: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
+    fontFamily: 'Poppins-SemiBold',
     color: colors.text.primary,
   },
+  warningBadge: {
+    backgroundColor: colors.status.warning,
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  warningText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '600',
+    fontFamily: 'Inter-SemiBold',
+  },
   manageButton: {
-    padding: 4,
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: colors.background.tertiary,
   },
   classInfo: {
-    gap: 8,
+    gap: 12,
   },
   teacherName: {
     fontSize: 14,
+    fontFamily: 'Inter-Regular',
     color: colors.text.secondary,
   },
   classStats: {
     flexDirection: 'row',
-    gap: 16,
+    gap: 20,
   },
   classStat: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
+  },
+  statBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.background.tertiary,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     gap: 4,
   },
   classStatText: {
+    fontSize: 14,
+    fontWeight: '600',
+    fontFamily: 'Inter-SemiBold',
+    color: colors.text.primary,
+  },
+  statLabel: {
     fontSize: 12,
-    color: colors.text.tertiary,
+    fontFamily: 'Inter-Regular',
+    color: colors.text.secondary,
   },
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 60,
   },
+  emptyIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
   emptyText: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
-    color: colors.text.secondary,
-    marginTop: 16,
+    fontFamily: 'Poppins-SemiBold',
+    color: colors.text.primary,
+    marginBottom: 8,
   },
   emptySubtext: {
     fontSize: 14,
-    color: colors.text.tertiary,
-    marginTop: 4,
+    fontFamily: 'Inter-Regular',
+    color: colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  emptyButton: {
+    minWidth: 200,
   },
 });

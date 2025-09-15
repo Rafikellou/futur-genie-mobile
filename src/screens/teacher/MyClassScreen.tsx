@@ -14,7 +14,7 @@ import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../providers/AuthProvider';
 import { supabase } from '../../lib/supabase';
-import { ensureParentInvitationLink, generateInvitationUrl, getClassroomById } from '../../lib/database';
+import { ensureParentInvitationLink, generateInvitationUrl, getClassroomById } from '../../lib/db';
 import { Loader } from '../../components/common/Loader';
 import { ErrorView } from '../../components/common/ErrorView';
 import { colors } from '../../theme/colors';

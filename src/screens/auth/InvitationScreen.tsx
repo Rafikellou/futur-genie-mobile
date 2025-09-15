@@ -11,7 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { handleInvitationLink } from '../../lib/linking';
-import { getClassroomById, markInvitationLinkAsUsed, updateUser } from '../../lib/database';
+import { getClassroomById, invitationConsume } from '../../lib/db';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../providers/AuthProvider';
 import { colors } from '../../theme/colors';
@@ -89,7 +89,26 @@ export function InvitationScreen() {
       if (result.invitation) {
         setInvitation(result.invitation);
 
-        // Get classroom information
+        // If the user is not authenticated yet, redirect to dedicated sign-up flow
+        if (!user) {
+          (navigation as any)?.navigate('Auth', {
+            screen: 'InvitationSignUp',
+            params: { token: result.invitation.token },
+          });
+          return; // stop further processing in this screen
+        }
+
+        // If the user is authenticated, ensure their role matches the invitation intended role
+        const currentRole = (profile as any)?.role || (user as any)?.user_metadata?.role;
+        if (currentRole && currentRole !== result.invitation.role) {
+          setError(
+            `Ce lien est destiné aux ${result.invitation.role === 'PARENT' ? 'parents' : 'enseignants'}. ` +
+            `Vous êtes connecté en tant que ${currentRole.toLowerCase()}.`
+          );
+          return;
+        }
+
+        // Get classroom information via DAO
         const classroomInfo = await getClassroomById(result.invitation.classroomId);
         setClassroom(classroomInfo);
       }
@@ -110,11 +129,8 @@ export function InvitationScreen() {
 
     setProcessing(true);
     try {
-      // Consume invitation via Edge Function (handles role + associations + mark used)
-      const { data, error: fnError } = await supabase.functions.invoke('invitation_consume', {
-        body: { token: invitation.token },
-      });
-      if (fnError) throw fnError;
+      // Consume invitation via DAO (Edge Function)
+      await invitationConsume(invitation.token);
 
       // Refresh JWT to include updated app_metadata
       await supabase.auth.refreshSession();
@@ -175,7 +191,7 @@ export function InvitationScreen() {
           
           <TouchableOpacity 
             style={styles.backButton} 
-            onPress={() => navigation.navigate('Auth', { screen: 'Login' })}
+            onPress={() => (user ? (navigation as any).navigate('Main') : (navigation as any).navigate('Auth', { screen: 'Login' }))}
           >
             <Text style={styles.backButtonText}>Retour à la connexion</Text>
           </TouchableOpacity>

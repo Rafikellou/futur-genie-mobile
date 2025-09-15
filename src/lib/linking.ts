@@ -1,6 +1,6 @@
 import * as Linking from 'expo-linking';
-import { supabase } from './supabase';
 import { navigationRef } from './navigationRef';
+import { invitationPreview } from './db';
 // Validate invitation via Edge Function to avoid RLS issues
 
 const prefix = Linking.createURL('/');
@@ -9,6 +9,8 @@ export const linkingConfig = {
   prefixes: [prefix, 'futurgenie://', 'https://app.votredomaine'],
   config: {
     screens: {
+      // When AuthStack is rendered at root, we still want /invite to resolve
+      InviteEntry: 'invite',
       Auth: {
         screens: {
           Login: 'login',
@@ -30,18 +32,16 @@ export const linkingConfig = {
 export const handleInvitationLink = async (url: string) => {
   try {
     const parsed = Linking.parse(url);
-    const token = parsed.queryParams?.token as string;
-    const path = parsed.path?.replace(/^\//, '');
-    
-    if (!token || path !== 'invite') {
+    const token = parsed.queryParams?.token as string | undefined;
+    // Some Expo dev URLs look like exp://.../--/invite?token=...
+    // We should not hard-fail on path differences; the presence of a token is sufficient here.
+    if (!token) {
       return { success: false, error: 'Token manquant dans le lien' };
     }
     
-    // Validate the invitation token via Edge Function
-    const { data, error } = await supabase.functions.invoke('invitation_preview', {
-      body: { token },
-    });
-    if (error || !data?.ok) {
+    // Validate the invitation token via DAO (Edge Function)
+    const data = await invitationPreview(token);
+    if (!data?.ok) {
       return { success: false, error: "Lien d'invitation invalide" };
     }
     if (new Date(data.expires_at) < new Date()) {
@@ -76,7 +76,7 @@ export const initializeLinking = () => {
       // Optionally validate before navigation
       handleInvitationLink(url).finally(() => {
         if (navigationRef.isReady()) {
-          navigationRef.navigate('Invitation' as never, { url } as never);
+          (navigationRef as any).navigate('InviteEntry', { token });
         }
       });
     }
@@ -92,7 +92,7 @@ export const initializeLinking = () => {
       if (path === 'invite' && token) {
         handleInvitationLink(url).finally(() => {
           if (navigationRef.isReady()) {
-            navigationRef.navigate('Invitation' as never, { url } as never);
+            (navigationRef as any).navigate('InviteEntry', { token });
           }
         });
       }

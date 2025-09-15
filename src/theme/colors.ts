@@ -1,84 +1,89 @@
-// Theme colors based on the dark design with blue-violet gradients
+// Charte graphique Futur Génie - Couleurs officielles
 export const colors = {
-  // Background colors
+  // Background colors - Bleu marine profond comme base
   background: {
-    primary: '#121212',      // Main dark background
-    secondary: '#1E1E1E',    // Cards and secondary elements
-    tertiary: '#2A2A2A',     // Input fields and interactive elements
+    primary: '#0B1D3A',      // Fond principal bleu marine profond
+    secondary: '#12284F',    // Cartes et éléments secondaires (bleu nuit plus clair)
+    tertiary: '#1A3458',     // Champs de saisie et éléments interactifs
   },
   
-  // Text colors
+  // Text colors - Blanc cassé et gris clair
   text: {
-    primary: '#FFFFFF',      // Main text
-    secondary: '#E0E0E0',    // Secondary text
-    tertiary: '#9E9E9E',     // Muted text
-    placeholder: '#616161',  // Placeholder text
+    primary: '#F2F4F8',      // Texte principal blanc cassé
+    secondary: '#B0B8C5',    // Texte secondaire gris clair
+    tertiary: '#8A92A0',     // Texte atténué
+    placeholder: '#6B7280',  // Placeholder
+    accent: '#FF4FA3',       // Texte d'accent rose (mots-clés, tags)
   },
   
-  // Accent colors from user's brand palette
+  // Couleurs d'accent issues du logo - Dégradé violet → rose → orange
   accent: {
-    blue: '#015FF7',        // Bleu vif
-    violet: '#6239E1',      // Violet
-    pink: '#EA1E83',        // Rose fuchsia
-    orange: '#FF7F59',      // Orange clair
-    pastel: '#FB995D',      // Orange pastel
+    violet: '#8B5CF6',       // Violet du dégradé logo
+    pink: '#FF4FA3',         // Rose du dégradé logo
+    orange: '#FB7C37',       // Orange du dégradé logo
+    blueLight: '#4DA6FF',    // Bleu clair pour hover/états secondaires
   },
   
-  // Primary gradient (blue to violet as requested)
+  // Dégradés du logo
   gradient: {
-    start: '#015FF7',       // Bleu vif
-    end: '#6239E1',         // Violet
+    primary: ['#8B5CF6', '#FF4FA3', '#FB7C37'], // Violet → Rose → Orange
+    secondary: ['#8B5CF6', '#FF4FA3'],           // Violet → Rose
+    tertiary: ['#FF4FA3', '#FB7C37'],            // Rose → Orange
   },
   
   // Button colors
   button: {
     primary: {
-      background: 'linear-gradient(135deg, #015FF7 0%, #6239E1 100%)',
-      text: '#ffffff',
+      gradient: ['#8B5CF6', '#FF4FA3', '#FB7C37'], // Dégradé logo complet
+      text: '#FFFFFF',
     },
     secondary: {
-      background: '#2A2A2A',
-      text: '#E0E0E0',
+      background: '#12284F',
+      text: '#F2F4F8',
+      border: '#1A3458',
     },
-    success: {
-      background: '#10b981',
-      text: '#ffffff',
+    hover: {
+      gradient: ['#9F70FF', '#FF69B4', '#FF8C42'], // Version éclaircie du dégradé
+      background: '#4DA6FF', // Bleu clair pour hover
     },
-    danger: {
-      background: '#ef4444',
-      text: '#ffffff',
+    disabled: {
+      background: '#374151', // Gris bleuté
+      text: '#6B7280',
     },
   },
   
   // Border colors
   border: {
-    primary: '#2A2A2A',
-    secondary: '#3D3D3D',
-    accent: '#015FF7',       // Bleu vif
+    primary: '#1A3458',
+    secondary: '#2D4A6B',
+    accent: '#FF4FA3',       // Rose accent
   },
   
   // Status colors
   status: {
-    success: '#10b981',
-    warning: '#FB995D',      // Orange pastel
-    error: '#ef4444',
-    info: '#015FF7',         // Bleu vif
+    success: '#10B981',
+    warning: '#FB7C37',      // Orange du logo
+    error: '#EF4444',
+    info: '#4DA6FF',         // Bleu clair
   },
   
   // Brand colors
   brand: {
-    primary: '#6239E1',      // Violet
-    secondary: '#015FF7',    // Bleu vif
+    primary: '#8B5CF6',      // Violet principal
+    secondary: '#FF4FA3',    // Rose accent
+    tertiary: '#FB7C37',     // Orange
   },
   
   // Special colors
-  overlay: 'rgba(0, 0, 0, 0.5)',
+  overlay: 'rgba(11, 29, 58, 0.8)',  // Overlay avec la couleur de fond
+  shadow: 'rgba(0, 0, 0, 0.25)',     // Ombres douces 25%
   transparent: 'transparent',
 };
 
 // Gradient styles for React Native
 export const gradients = {
-  primary: ['#015FF7', '#6239E1'] as const,
-  secondary: ['#6239E1', '#EA1E83'] as const,  // Violet to Rose fuchsia
-  accent: ['#FF7F59', '#FB995D'] as const,     // Orange gradient
+  primary: ['#8B5CF6', '#FF4FA3', '#FB7C37'] as const,  // Dégradé logo complet
+  secondary: ['#8B5CF6', '#FF4FA3'] as const,           // Violet → Rose
+  tertiary: ['#FF4FA3', '#FB7C37'] as const,            // Rose → Orange
+  hover: ['#9F70FF', '#FF69B4', '#FF8C42'] as const,    // Version éclaircie
 };

@@ -6,12 +6,14 @@ import { DirectorClassesScreen } from '../screens/director/DirectorClassesScreen
 import { DirectorUsersScreen } from '../screens/director/DirectorUsersScreen';
 import { DirectorInvitationsScreen } from '../screens/director/DirectorInvitationsScreen';
 import { colors } from '../theme/colors';
+import { ProfileScreen } from '../screens/common/ProfileScreen';
 
 export type DirectorTabsParamList = {
   Dashboard: undefined;
   Classes: undefined;
   Users: undefined;
   Invitations: undefined;
+  Profile: undefined;
 };
 
 const Tab = createBottomTabNavigator<DirectorTabsParamList>();
@@ -33,6 +35,8 @@ export function DirectorTabs() {
             iconName = focused ? 'people' : 'people-outline';
           } else if (route.name === 'Invitations') {
             iconName = focused ? 'qr-code' : 'qr-code-outline';
+          } else if (route.name === 'Profile') {
+            iconName = focused ? 'person' : 'person-outline';
           } else {
             iconName = 'help-outline';
           }
@@ -73,6 +77,11 @@ export function DirectorTabs() {
         name="Invitations" 
         component={DirectorInvitationsScreen} 
         options={{ title: 'Invitations' }}
+      />
+      <Tab.Screen 
+        name="Profile" 
+        component={ProfileScreen} 
+        options={{ title: 'Profil' }}
       />
     </Tab.Navigator>
   );

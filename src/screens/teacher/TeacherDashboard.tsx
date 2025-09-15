@@ -16,8 +16,10 @@ import { useAuth } from '../../providers/AuthProvider';
 import { supabase } from '../../lib/supabase';
 import { Loader } from '../../components/common/Loader';
 import { ErrorView } from '../../components/common/ErrorView';
+import { GradientButton } from '../../components/common/GradientButton';
 import { EditQuizModal } from './EditQuizModal';
 import { colors, gradients } from '../../theme/colors';
+import { commonStyles } from '../../theme/styles';
 
 interface Quiz {
   id: string;
@@ -222,37 +224,44 @@ export function TeacherDashboard() {
 
   const renderQuizItem = ({ item }: { item: Quiz }) => {
     return (
-      <View style={styles.quizCard}>
+      <View style={[commonStyles.card, styles.quizCard]}>
         <View style={styles.quizHeader}>
-          <View style={styles.quizInfo}>
-            <Text style={styles.quizTitle}>{item.title}</Text>
-            <Text style={styles.quizDescription}>{item.description}</Text>
-            <View style={styles.statusRow}>
-              <View style={[
-                styles.statusBadge,
-                { backgroundColor: item.is_published ? '#10b981' : '#f59e0b' }
-              ]}>
-                <Text style={styles.statusText}>
-                  {item.is_published ? 'Publié' : 'Brouillon'}
-                </Text>
-              </View>
-              <Text style={styles.submissionCount}>
-                {item._count.submissions} soumission(s)
+          <View style={styles.quizTitleContainer}>
+            <Text style={styles.quizTitle}>📝 {item.title}</Text>
+            <LinearGradient
+              colors={item.is_published ? [colors.status.success, '#22c55e'] : [colors.status.warning, '#fbbf24']}
+              style={styles.statusBadge}
+            >
+              <Text style={styles.statusText}>
+                {item.is_published ? '✅ Publié' : '📝 Brouillon'}
               </Text>
+            </LinearGradient>
+          </View>
+          
+          <Text style={styles.quizDescription}>{item.description}</Text>
+          
+          <View style={styles.statsContainer}>
+            <View style={styles.statItem}>
+              <View style={styles.statBadge}>
+                <Ionicons name="people" size={14} color={colors.accent.pink} />
+                <Text style={styles.statValue}>{item._count.submissions}</Text>
+              </View>
+              <Text style={styles.statLabel}>soumissions</Text>
             </View>
+            
+            {item.is_published && item.published_at && (
+              <View style={styles.statItem}>
+                <View style={styles.statBadge}>
+                  <Ionicons name="calendar" size={14} color={colors.accent.orange} />
+                  <Text style={styles.statValue}>{new Date(item.published_at).toLocaleDateString('fr-FR')}</Text>
+                </View>
+                <Text style={styles.statLabel}>publié le</Text>
+              </View>
+            )}
           </View>
         </View>
         
         <View style={styles.quizFooter}>
-          {item.is_published && item.published_at && (
-            <Text style={styles.dateText}>
-              Publié le {new Date(item.published_at).toLocaleDateString('fr-FR')}
-              {item.unpublish_at && ` • Fin le ${new Date(item.unpublish_at).toLocaleDateString('fr-FR')}`}
-            </Text>
-          )}
-          {!item.is_published && (
-            <Text style={styles.draftText}>Brouillon</Text>
-          )}
           <View style={styles.actionButtons}>
             <TouchableOpacity
               style={[styles.actionButton, styles.editButton]}
@@ -260,10 +269,11 @@ export function TeacherDashboard() {
               disabled={loadingQuizData}
             >
               {loadingQuizData ? (
-                <ActivityIndicator size="small" color="#2563eb" />
+                <ActivityIndicator size="small" color={colors.accent.violet} />
               ) : (
-                <Ionicons name="pencil" size={16} color="#2563eb" />
+                <Ionicons name="pencil" size={16} color={colors.accent.violet} />
               )}
+              <Text style={styles.actionButtonText}>Modifier</Text>
             </TouchableOpacity>
             
             <TouchableOpacity
@@ -273,15 +283,19 @@ export function TeacherDashboard() {
               <Ionicons 
                 name={item.is_published ? 'eye-off' : 'eye'} 
                 size={16} 
-                color={item.is_published ? '#f59e0b' : '#10b981'} 
+                color={item.is_published ? colors.status.warning : colors.status.success} 
               />
+              <Text style={styles.actionButtonText}>
+                {item.is_published ? 'Masquer' : 'Publier'}
+              </Text>
             </TouchableOpacity>
             
             <TouchableOpacity
               style={[styles.actionButton, styles.deleteButton]}
               onPress={() => deleteQuiz(item.id)}
             >
-              <Ionicons name="trash" size={16} color="#ef4444" />
+              <Ionicons name="trash" size={16} color={colors.status.error} />
+              <Text style={styles.actionButtonText}>Supprimer</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -299,29 +313,31 @@ export function TeacherDashboard() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.welcomeText}>
-          Bonjour {profile?.full_name} !
-        </Text>
-        <Text style={styles.subtitleText}>
-          Gérez vos quiz et suivez les performances
-        </Text>
-      </View>
-
       <LinearGradient
-        colors={gradients.primary}
-        style={styles.createButton}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+        colors={[colors.background.primary, colors.background.secondary]}
+        style={styles.header}
       >
-        <TouchableOpacity 
-          style={styles.createButtonInner}
-          onPress={() => navigation.navigate('CreateQuiz' as never)}
-        >
-          <Ionicons name="add" size={24} color="#fff" />
-          <Text style={styles.createButtonText}>Créer un nouveau quiz</Text>
-        </TouchableOpacity>
+        <View style={styles.welcomeContainer}>
+          <Text style={styles.welcomeText}>
+            Bonjour {profile?.full_name?.split(' ')[0] || 'Enseignant'} ! 👋
+          </Text>
+          <Text style={styles.subtitleText}>
+            Gérez vos quiz et suivez les performances de vos élèves
+          </Text>
+        </View>
+        <View style={styles.headerIcon}>
+          <Ionicons name="school" size={32} color={colors.accent.orange} />
+        </View>
       </LinearGradient>
+
+      <View style={styles.createButtonContainer}>
+        <GradientButton
+          title="✨ Créer un nouveau quiz"
+          onPress={() => navigation.navigate('CreateQuiz' as never)}
+          variant="primary"
+          style={styles.createButton}
+        />
+      </View>
 
       <FlatList
         data={quizzes}
@@ -334,8 +350,22 @@ export function TeacherDashboard() {
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Ionicons name="document-text-outline" size={64} color="#9ca3af" />
+            <LinearGradient
+              colors={[colors.background.secondary, colors.background.tertiary]}
+              style={styles.emptyIconContainer}
+            >
+              <Ionicons name="document-text-outline" size={48} color={colors.accent.orange} />
+            </LinearGradient>
             <Text style={styles.emptyText}>Aucun quiz créé</Text>
+            <Text style={styles.emptySubtext}>
+              Commencez par créer votre premier quiz pour engager vos élèves
+            </Text>
+            <GradientButton
+              title="Créer mon premier quiz"
+              onPress={() => navigation.navigate('CreateQuiz' as never)}
+              variant="secondary"
+              style={styles.emptyButton}
+            />
           </View>
         }
       />
@@ -362,122 +392,150 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background.primary,
   },
-  // ... (rest of the styles remain the same)
   header: {
     padding: 20,
-    backgroundColor: colors.background.secondary,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.primary,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  welcomeContainer: {
+    flex: 1,
   },
   welcomeText: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: '600',
+    fontFamily: 'Poppins-SemiBold',
     color: colors.text.primary,
     marginBottom: 4,
   },
   subtitleText: {
     fontSize: 16,
+    fontFamily: 'Inter-Regular',
     color: colors.text.secondary,
+    lineHeight: 22,
   },
-  createButton: {
-    margin: 16,
-    borderRadius: 12,
-  },
-  createButtonInner: {
-    flexDirection: 'row',
+  headerIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: colors.background.secondary,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
+    ...commonStyles.shadow,
   },
-  createButtonText: {
-    color: colors.text.primary,
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
+  createButtonContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  createButton: {
+    // Styles spécifiques si nécessaire
   },
   listContainer: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
   },
   quizCard: {
-    backgroundColor: colors.background.secondary,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: colors.border.primary,
+    marginBottom: 16,
   },
   quizHeader: {
-    marginBottom: 12,
+    marginBottom: 16,
   },
-  quizInfo: {
-    flex: 1,
+  quizTitleContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
   },
   quizTitle: {
     fontSize: 18,
     fontWeight: '600',
+    fontFamily: 'Poppins-SemiBold',
     color: colors.text.primary,
-    marginBottom: 4,
+    flex: 1,
+    marginRight: 12,
   },
   quizDescription: {
     fontSize: 14,
+    fontFamily: 'Inter-Regular',
     color: colors.text.secondary,
-    marginBottom: 8,
-  },
-  statusRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    lineHeight: 20,
+    marginBottom: 16,
   },
   statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
   },
   statusText: {
-    color: colors.text.primary,
+    color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '600',
+    fontFamily: 'Inter-SemiBold',
   },
-  submissionCount: {
+  statsContainer: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  statBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.background.tertiary,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    gap: 4,
+  },
+  statValue: {
     fontSize: 12,
+    fontWeight: '600',
+    fontFamily: 'Inter-SemiBold',
+    color: colors.text.primary,
+  },
+  statLabel: {
+    fontSize: 11,
+    fontFamily: 'Inter-Regular',
     color: colors.text.secondary,
   },
   quizFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 12,
+    paddingTop: 16,
     borderTopWidth: 1,
     borderTopColor: colors.border.primary,
-  },
-  dateText: {
-    fontSize: 12,
-    color: colors.text.secondary,
-    marginBottom: 8,
-  },
-  draftText: {
-    fontSize: 12,
-    color: colors.text.tertiary,
-    fontStyle: 'italic',
-    marginBottom: 8,
   },
   actionButtons: {
     flexDirection: 'row',
     gap: 8,
   },
   actionButton: {
-    padding: 8,
-    borderRadius: 6,
-    borderWidth: 1,
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 10,
+    borderRadius: 8,
     backgroundColor: colors.background.tertiary,
+    gap: 4,
+  },
+  actionButtonText: {
+    fontSize: 12,
+    fontWeight: '500',
+    fontFamily: 'Inter-Medium',
+    color: colors.text.secondary,
   },
   editButton: {
-    borderColor: colors.brand.secondary,
+    borderWidth: 1,
+    borderColor: colors.accent.violet,
   },
   publishButton: {
+    borderWidth: 1,
     borderColor: colors.status.success,
   },
   deleteButton: {
+    borderWidth: 1,
     borderColor: colors.status.error,
   },
   emptyContainer: {
@@ -485,15 +543,30 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 60,
   },
+  emptyIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
   emptyText: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
-    color: colors.text.secondary,
-    marginTop: 16,
+    fontFamily: 'Poppins-SemiBold',
+    color: colors.text.primary,
+    marginBottom: 8,
   },
   emptySubtext: {
     fontSize: 14,
-    color: colors.text.tertiary,
-    marginTop: 4,
+    fontFamily: 'Inter-Regular',
+    color: colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  emptyButton: {
+    minWidth: 200,
   },
 });

@@ -8,10 +8,14 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../providers/AuthProvider';
 import { supabase } from '../../lib/supabase';
 import { Loader } from '../../components/common/Loader';
 import { ErrorView } from '../../components/common/ErrorView';
+import { GradientButton } from '../../components/common/GradientButton';
+import { colors, gradients } from '../../theme/colors';
+import { commonStyles } from '../../theme/styles';
 
 interface Quiz {
   id: string;
@@ -102,62 +106,88 @@ export function ParentDashboard() {
       return {
         status: 'completed',
         score: userSubmission.score,
-        color: '#10b981',
+        color: colors.status.success,
         icon: 'checkmark-circle' as keyof typeof Ionicons.glyphMap,
       };
     }
     return {
       status: 'available',
       score: null,
-      color: '#2563eb',
+      color: colors.accent.violet,
       icon: 'play-circle' as keyof typeof Ionicons.glyphMap,
     };
   };
 
   const renderQuizItem = ({ item }: { item: Quiz }) => {
     const status = getQuizStatus(item);
-    
-    // Debug
-    console.log('Quiz data:', {
-      title: item.title,
-      hasQuestions: !!item.questions,
-      questionStyles: styles.questionOption
-    });
+    const submissionCount = item.submissions.length;
+    const questionCount = item.questions.length;
 
     return (
-      <TouchableOpacity style={styles.quizCard}>
+      <View style={[commonStyles.card, styles.quizCard]}>
         <View style={styles.quizHeader}>
-          <View style={styles.quizInfo}>
+          <View style={styles.quizTitleContainer}>
             <Text style={styles.quizTitle}>{item.title}</Text>
-            
-            {/* Test visuel forcé */}
-            <View style={[styles.questionOption, {backgroundColor: '#2A2A2A'}]}>
-              <Text style={styles.text}>
-                Exemple de question (test)
+            <LinearGradient
+              colors={status.status === 'completed' ? [colors.status.success, colors.status.success] : gradients.primary as any}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.statusBadge}
+            >
+              <Ionicons name={status.icon} size={16} color="#FFFFFF" />
+              <Text style={styles.statusText}>
+                {status.status === 'completed' ? `${status.score}%` : 'Disponible'}
               </Text>
+            </LinearGradient>
+          </View>
+          
+          {item.description && (
+            <Text style={styles.quizDescription}>{item.description}</Text>
+          )}
+          
+          <View style={styles.statsContainer}>
+            <View style={styles.statBadge}>
+              <LinearGradient
+                colors={gradients.tertiary as any}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.statGradient}
+              >
+                <Ionicons name="help-circle-outline" size={14} color="#FFFFFF" />
+              </LinearGradient>
+              <Text style={styles.statValue}>{questionCount}</Text>
+              <Text style={styles.statLabel}>questions</Text>
             </View>
             
-            {item.questions?.slice(0, 2).map((q, i) => {
-              console.log(`Question ${i}:`, {
-                text: q.text,
-                hasText: !!q.text,
-                textLength: q.text?.length
-              });
-              
-              return (
-                <View key={i} style={styles.questionOption}>
-                  <Text 
-                    style={styles.text}
-                    testID={`question-${i}-text`}
-                  >
-                    {q.text || 'Texte non disponible'}
-                  </Text>
-                </View>
-              );
-            })}
+            <View style={styles.statBadge}>
+              <LinearGradient
+                colors={gradients.secondary as any}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.statGradient}
+              >
+                <Ionicons name="people-outline" size={14} color="#FFFFFF" />
+              </LinearGradient>
+              <Text style={styles.statValue}>{submissionCount}</Text>
+              <Text style={styles.statLabel}>réponses</Text>
+            </View>
           </View>
         </View>
-      </TouchableOpacity>
+        
+        <View style={styles.quizFooter}>
+          <View style={styles.teacherInfo}>
+            <Text style={styles.teacherLabel}>Enseignant :</Text>
+            <Text style={styles.teacherName}>{item.teacher.full_name}</Text>
+          </View>
+          
+          <GradientButton
+            title={status.status === 'completed' ? 'Voir résultat' : 'Commencer'}
+            onPress={() => {/* Navigation vers le quiz */}}
+            variant={status.status === 'completed' ? 'secondary' : 'primary'}
+            style={styles.actionButton}
+          />
+        </View>
+      </View>
     );
   };
 
@@ -171,14 +201,28 @@ export function ParentDashboard() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.welcomeText}>
-          Bonjour {profile?.full_name?.split(' ')[0] || 'Parent'} !
-        </Text>
-        <Text style={styles.subtitleText}>
-          Voici les quiz disponibles pour votre classe
-        </Text>
-      </View>
+      <LinearGradient
+        colors={[colors.background.secondary, colors.background.primary] as any}
+        style={styles.header}
+      >
+        <View style={styles.welcomeContainer}>
+          <Text style={styles.welcomeText}>
+            Bonjour {profile?.full_name?.split(' ')[0] || 'Parent'} !
+          </Text>
+          <Text style={styles.subtitleText}>
+            Voici les quiz disponibles pour votre classe
+          </Text>
+        </View>
+        
+        <LinearGradient
+          colors={gradients.primary as any}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.headerIcon}
+        >
+          <Ionicons name="school-outline" size={28} color="#FFFFFF" />
+        </LinearGradient>
+      </LinearGradient>
 
       <FlatList
         data={quizzes}
@@ -191,13 +235,26 @@ export function ParentDashboard() {
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Ionicons name="document-outline" size={64} color="#9ca3af" />
+            <LinearGradient
+              colors={gradients.tertiary as any}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.emptyIconContainer}
+            >
+              <Ionicons name="document-outline" size={40} color="#FFFFFF" />
+            </LinearGradient>
             <Text style={styles.emptyText}>
               Aucun quiz disponible
             </Text>
             <Text style={styles.emptySubtext}>
-              Les nouveaux quiz apparaîtront ici
+              Les nouveaux quiz de vos enseignants apparaîtront ici dès qu'ils seront publiés.
             </Text>
+            <GradientButton
+              title="Actualiser"
+              onPress={onRefresh}
+              variant="secondary"
+              style={styles.emptyButton}
+            />
           </View>
         }
       />
@@ -208,135 +265,170 @@ export function ParentDashboard() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1e293b', // Dark background matching theme
+    backgroundColor: colors.background.primary,
   },
   header: {
     padding: 20,
-    backgroundColor: '#334155', // Secondary background
-    borderBottomWidth: 1,
-    borderBottomColor: '#475569', // Border primary
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  welcomeContainer: {
+    flex: 1,
   },
   welcomeText: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: 'white', // Primary text
+    fontWeight: '600',
+    fontFamily: 'Poppins-SemiBold',
+    color: colors.text.primary,
     marginBottom: 4,
   },
   subtitleText: {
     fontSize: 16,
-    color: 'white', // Secondary text
+    fontFamily: 'Inter-Regular',
+    color: colors.text.secondary,
+    lineHeight: 22,
+  },
+  headerIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...commonStyles.shadow,
   },
   listContainer: {
-    padding: 16,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
   },
   quizCard: {
-    backgroundColor: '#334155', // Secondary background
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.3, // Increased for better visibility on dark
-    shadowRadius: 3.84,
-    elevation: 5,
-    borderWidth: 1,
-    borderColor: '#475569', // Border for better definition
+    marginBottom: 16,
   },
   quizHeader: {
+    marginBottom: 16,
+  },
+  quizTitleContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: 12,
   },
-  quizInfo: {
-    flex: 1,
-    marginRight: 12,
-  },
   quizTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: 'white', // Blanc pur
-    marginBottom: 4,
+    fontFamily: 'Poppins-SemiBold',
+    color: colors.text.primary,
+    flex: 1,
+    marginRight: 12,
   },
   quizDescription: {
     fontSize: 14,
-    color: 'white', // Gris clair (#E0E0E0)
-    marginBottom: 8,
-    lineHeight: 20, // Ajout pour meilleure lisibilité
+    fontFamily: 'Inter-Regular',
+    color: colors.text.secondary,
+    lineHeight: 20,
+    marginBottom: 16,
   },
-  teacherName: {
-    fontSize: 12,
-    color: 'white', // Orange pastel pour un peu de couleur
-    fontStyle: 'italic',
-  },
-  statusContainer: {
+  statusBadge: {
+    flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    gap: 4,
   },
-  scoreText: {
+  statusText: {
+    color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '600',
-    marginTop: 4,
+    fontFamily: 'Inter-SemiBold',
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  statBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.background.tertiary,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    gap: 4,
+  },
+  statGradient: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statValue: {
+    fontSize: 12,
+    fontWeight: '600',
+    fontFamily: 'Inter-SemiBold',
+    color: colors.text.primary,
+  },
+  statLabel: {
+    fontSize: 11,
+    fontFamily: 'Inter-Regular',
+    color: colors.text.secondary,
   },
   quizFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 12,
+    paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: '#475569', // Border primary
+    borderTopColor: colors.border.primary,
   },
-  dateText: {
-    fontSize: 12,
-    color: 'white', // Tertiary text
+  teacherInfo: {
+    flex: 1,
+  },
+  teacherLabel: {
+    fontSize: 11,
+    fontFamily: 'Inter-Regular',
+    color: colors.text.tertiary,
+    marginBottom: 2,
+  },
+  teacherName: {
+    fontSize: 13,
+    fontWeight: '500',
+    fontFamily: 'Inter-Medium',
+    color: colors.text.secondary,
   },
   actionButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8, // Slightly more rounded
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  actionButtonText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: '600',
+    minWidth: 120,
   },
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 60,
   },
+  emptyIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
   emptyText: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
-    color: 'white', // Secondary text
-    marginTop: 16,
+    fontFamily: 'Poppins-SemiBold',
+    color: colors.text.primary,
+    marginBottom: 8,
   },
   emptySubtext: {
     fontSize: 14,
-    color: 'white', // Tertiary text
-    marginTop: 4,
+    fontFamily: 'Inter-Regular',
+    color: colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+    paddingHorizontal: 20,
   },
-  optionText: { 
-    fontSize: 16,
-    color: 'white', // Blanc
-    paddingVertical: 12,
+  emptyButton: {
+    minWidth: 200,
   },
-  questionOption: {
-    fontSize: 16,
-    color: 'white', // Blanc
-    padding: 12,
-    backgroundColor: '#475569', // Tertiary background
-    borderRadius: 8,
-    marginVertical: 4,
-  },
-  text: {
-    color: 'white',
-  }
 });

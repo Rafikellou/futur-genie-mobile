@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -18,24 +18,26 @@ import { Loader } from '../../components/common/Loader';
 import { colors, gradients } from '../../theme/colors';
 import { invitationPreview, invitationConsume } from '../../lib/db';
 import { supabase } from '../../lib/supabase';
+import { testProfileRetrieval } from '../../lib/diagnostics';
 
-type InvitationSignUpScreenNavigationProp = StackNavigationProp<any, 'InvitationSignUp'>;
-type InvitationSignUpScreenRouteProp = RouteProp<any, 'InvitationSignUp'>;
+// Minimal types for this screen
+type ParamList = {
+  TeacherInvitationSignUp: { token: string };
+  Login: undefined;
+};
 
-interface Props {
-  navigation: InvitationSignUpScreenNavigationProp;
-  route: InvitationSignUpScreenRouteProp;
-}
+type NavProp = StackNavigationProp<ParamList, 'TeacherInvitationSignUp'>;
 
-export function InvitationSignUpScreen({ navigation, route }: Props) {
+type Props = { navigation: NavProp; route: RouteProp<ParamList, 'TeacherInvitationSignUp'> };
+
+export function TeacherInvitationSignUpScreen({ navigation, route }: Props) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
-  const [childFirstName, setChildFirstName] = useState('');
   const [loading, setLoading] = useState(false);
   const [invitationData, setInvitationData] = useState<any>(null);
-  const { signUp } = useAuth();
+  const { signUp, refreshProfile, setInvitationProcessing } = useAuth();
 
   const token = route.params?.token;
 
@@ -49,12 +51,17 @@ export function InvitationSignUpScreen({ navigation, route }: Props) {
     try {
       const data = await invitationPreview(token);
       if (!data?.ok) {
-        Alert.alert('Erreur', 'Lien d\'invitation invalide');
+        Alert.alert('Erreur', "Lien d'invitation invalide");
         navigation.goBack();
         return;
       }
       if (new Date(data.expires_at) < new Date()) {
-        Alert.alert('Erreur', 'Ce lien d\'invitation a expiré');
+        Alert.alert('Erreur', "Ce lien d'invitation a expiré");
+        navigation.goBack();
+        return;
+      }
+      if (data.intended_role !== 'TEACHER') {
+        Alert.alert('Erreur', "Ce lien n'est pas destiné aux enseignants");
         navigation.goBack();
         return;
       }
@@ -64,7 +71,7 @@ export function InvitationSignUpScreen({ navigation, route }: Props) {
         school: data.school,
       });
     } catch (error) {
-      Alert.alert('Erreur', 'Impossible de vérifier l\'invitation');
+      Alert.alert('Erreur', "Impossible de vérifier l'invitation");
       navigation.goBack();
     }
   };
@@ -74,72 +81,69 @@ export function InvitationSignUpScreen({ navigation, route }: Props) {
       Alert.alert('Erreur', 'Veuillez remplir tous les champs obligatoires');
       return;
     }
-
-    if (invitationData?.intended_role === 'PARENT' && !childFirstName) {
-      Alert.alert('Erreur', 'Le prénom de l\'enfant est requis pour les parents');
-      return;
-    }
-
     if (password !== confirmPassword) {
       Alert.alert('Erreur', 'Les mots de passe ne correspondent pas');
       return;
     }
-
     if (password.length < 6) {
       Alert.alert('Erreur', 'Le mot de passe doit contenir au moins 6 caractères');
       return;
     }
 
     setLoading(true);
-    
     try {
-      // Create auth user
+      // Create auth user (role will be set by invitation consumption)
       const { error: signUpError } = await signUp(
-        email, 
-        password, 
-        fullName.split(' ')[0], 
+        email,
+        password,
+        fullName.split(' ')[0],
         fullName.split(' ').slice(1).join(' ') || ''
       );
-      
       if (signUpError) {
-        Alert.alert('Erreur d\'inscription', signUpError.message);
+        Alert.alert("Erreur d'inscription", signUpError.message);
         return;
       }
 
       // Consume invitation
       try {
-        await invitationConsume(token, {
-          childFirstName: invitationData?.intended_role === 'PARENT' ? childFirstName : null,
-        });
-      } catch (consumeError: any) {
-        Alert.alert('Erreur', 'Compte créé mais impossible de traiter l\'invitation. Contactez votre école.');
-        return;
+        console.log('🔄 Starting invitation consume with token:', token);
+        
+        // Signal AuthProvider to pause profile fetching
+        setInvitationProcessing(true);
+        
+        const result = await invitationConsume(token);
+        console.log('✅ Invitation consume completed successfully');
+        
+        // Refresh session and wait for JWT propagation
+        try { 
+          console.log('🔄 Refreshing session after invitation consume...');
+          await supabase.auth.refreshSession(); 
+        } catch (e) {
+          console.warn('⚠️ Session refresh failed:', e);
+        }
+        
+        // Wait for JWT propagation
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        
+        // Re-enable AuthProvider and trigger profile fetch
+        setInvitationProcessing(false);
+        await refreshProfile();
+        
+        console.log('✅ Teacher invitation signup completed successfully');
+        // Navigation will be handled by AppNavigator based on updated profile
+      } catch (error) {
+        console.error('❌ Error consuming invitation:', error);
+        setInvitationProcessing(false); // Re-enable AuthProvider on error
+        Alert.alert('Erreur', 'Impossible de traiter l\'invitation. Veuillez réessayer.');
       }
-
-      // Refresh session to include updated app_metadata and let AppNavigator switch
-      try {
-        await supabase.auth.refreshSession();
-      } catch {}
-
-      const { data: sessionData } = await supabase.auth.getSession();
-      const hasSession = !!sessionData?.session?.user;
-
-      if (hasSession) {
-        Alert.alert(
-          'Inscription réussie',
-          'Votre compte a été créé et l\'invitation a été appliquée. Vous allez être redirigé vers votre tableau de bord.',
-          [{ text: 'OK' }]
-        );
-        // No explicit navigation: AppNavigator will render the proper Tabs when session is present
-      } else {
-        Alert.alert(
-          'Inscription réussie',
-          'Votre compte a été créé. Vérifiez votre email pour confirmer votre compte avant de vous connecter.',
-          [{ text: 'OK', onPress: () => navigation.navigate('Login') }]
-        );
-      }
-    } catch (error: any) {
-      Alert.alert('Erreur', error?.message || 'Une erreur est survenue');
+      
+      Alert.alert(
+        'Inscription réussie',
+        "Votre compte a été créé et l'invitation a été appliquée. Vous allez être redirigé vers votre tableau de bord.",
+        [{ text: 'OK' }]
+      );
+    } catch (e: any) {
+      Alert.alert('Erreur', e?.message || 'Une erreur est survenue');
     } finally {
       setLoading(false);
     }
@@ -149,23 +153,20 @@ export function InvitationSignUpScreen({ navigation, route }: Props) {
     return <Loader />;
   }
 
-  const isParent = invitationData.intended_role === 'PARENT';
-  const roleText = isParent ? 'Parent' : 'Enseignant';
-
   return (
-    <KeyboardAvoidingView 
-      style={styles.container} 
+    <KeyboardAvoidingView
+      style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
-          <Text style={styles.title}>Inscription {roleText}</Text>
-          <Text style={styles.subtitle}>
-            École: {invitationData.school?.name}
-          </Text>
-          <Text style={styles.subtitle}>
-            Classe: {invitationData.classroom?.name} ({invitationData.classroom?.grade})
-          </Text>
+          <Text style={styles.title}>Inscription Enseignant</Text>
+          <Text style={styles.subtitle}>Rejoignez la classe via votre invitation</Text>
+          {invitationData?.classroom && (
+            <Text style={styles.subtitle}>
+              Classe: {invitationData.classroom?.name} ({invitationData.classroom?.grade})
+            </Text>
+          )}
         </View>
 
         <View style={styles.form}>
@@ -175,23 +176,10 @@ export function InvitationSignUpScreen({ navigation, route }: Props) {
               style={styles.input}
               value={fullName}
               onChangeText={setFullName}
-              placeholder="Ex: Marie Dupont"
+              placeholder="Ex: Jean Martin"
               autoCapitalize="words"
             />
           </View>
-
-          {isParent && (
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Prénom de l'enfant *</Text>
-              <TextInput
-                style={styles.input}
-                value={childFirstName}
-                onChangeText={setChildFirstName}
-                placeholder="Ex: Lucas"
-                autoCapitalize="words"
-              />
-            </View>
-          )}
 
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Email *</Text>
@@ -252,43 +240,14 @@ export function InvitationSignUpScreen({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background.primary,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    padding: 20,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 40,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: colors.brand.primary,
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: colors.text.secondary,
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  form: {
-    width: '100%',
-  },
-  inputContainer: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text.primary,
-    marginBottom: 8,
-  },
+  container: { flex: 1, backgroundColor: colors.background.primary },
+  scrollContent: { flexGrow: 1, justifyContent: 'center', padding: 20 },
+  header: { alignItems: 'center', marginBottom: 40 },
+  title: { fontSize: 32, fontWeight: 'bold', color: colors.brand.primary, marginBottom: 8 },
+  subtitle: { fontSize: 16, color: colors.text.secondary, textAlign: 'center', marginBottom: 4 },
+  form: { width: '100%' },
+  inputContainer: { marginBottom: 20 },
+  label: { fontSize: 16, fontWeight: '600', color: colors.text.primary, marginBottom: 8 },
   input: {
     borderWidth: 1,
     borderColor: colors.border.primary,
@@ -298,31 +257,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background.secondary,
     color: colors.text.primary,
   },
-  signUpButton: {
-    borderRadius: 8,
-    marginTop: 20,
-  },
-  signUpButtonInner: {
-    padding: 16,
-    alignItems: 'center',
-  },
-  signUpButtonText: {
-    color: colors.text.primary,
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  loginContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 20,
-  },
-  loginText: {
-    fontSize: 16,
-    color: colors.text.secondary,
-  },
-  loginLink: {
-    fontSize: 16,
-    color: colors.brand.primary,
-    fontWeight: '600',
-  },
+  signUpButton: { borderRadius: 8, marginTop: 20 },
+  signUpButtonInner: { padding: 16, alignItems: 'center' },
+  signUpButtonText: { color: colors.text.primary, fontSize: 18, fontWeight: '600' },
+  loginContainer: { flexDirection: 'row', justifyContent: 'center', marginTop: 20 },
+  loginText: { fontSize: 16, color: colors.text.secondary },
+  loginLink: { fontSize: 16, color: colors.brand.primary, fontWeight: '600' },
 });

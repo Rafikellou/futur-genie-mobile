@@ -40,7 +40,7 @@
         "screens": {
           "Auth": {
             "screens": {
-              "Invitation": "invite"
+              "InviteEntry": "invite"
             }
           }
         }
@@ -52,6 +52,8 @@
       "expo-dev-client"
     ],
     "extra": {
+      "EXPO_PUBLIC_SUPABASE_URL": "https://kytanovmeikekkldcbif.supabase.co",
+      "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt5dGFub3ZtZWlrZWtrbGRjYmlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYwNjUyNzcsImV4cCI6MjA3MTY0MTI3N30._zmx_mbn_4O1EyksPrehaql1_A5XY64Q9v1ErHaaAW8",
       "eas": {
         "projectId": "e1949205-46da-4987-948d-11ab3798da94"
       }

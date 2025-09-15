@@ -17,6 +17,10 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
+// Export values for use in Edge Function headers
+export const SUPABASE_URL = supabaseUrl;
+export const SUPABASE_ANON_KEY = supabaseAnonKey;
+
 // Database types (based on your existing schema)
 export interface Database {
   public: {

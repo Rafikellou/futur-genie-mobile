@@ -19,98 +19,173 @@ export const commonStyles = StyleSheet.create({
     backgroundColor: colors.background.primary,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 20,
   },
   
-  // Card styles
+  // Card styles - Coins arrondis 16px, ombres douces
   card: {
     backgroundColor: colors.background.secondary,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 16,
+    padding: 20,
     marginBottom: 16,
-    borderWidth: 1,
-    borderColor: colors.border.primary,
+    shadowColor: colors.shadow,
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 8,
   },
   
   smallCard: {
     backgroundColor: colors.background.secondary,
-    borderRadius: 8,
-    padding: 12,
+    borderRadius: 12,
+    padding: 16,
     marginBottom: 12,
+    shadowColor: colors.shadow,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  
+  // Input styles - Design moderne et épuré
+  input: {
+    backgroundColor: colors.background.tertiary,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    color: colors.text.primary,
+    fontSize: 16,
+    fontFamily: 'Inter-Regular',
     borderWidth: 1,
     borderColor: colors.border.primary,
   },
   
-  // Input styles
-  input: {
-    backgroundColor: colors.background.secondary,
-    borderRadius: 8,
-    padding: 12,
-    color: colors.text.primary,
-    fontSize: 16,
-    borderWidth: 1,
-    borderColor: colors.border.primary,
+  inputFocused: {
+    borderColor: colors.accent.pink,
+    shadowColor: colors.accent.pink,
+    shadowOffset: {
+      width: 0,
+      height: 0,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
   
   textArea: {
-    backgroundColor: colors.background.secondary,
-    borderRadius: 8,
-    padding: 12,
+    backgroundColor: colors.background.tertiary,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     color: colors.text.primary,
-    fontSize: 14,
+    fontSize: 16,
+    fontFamily: 'Inter-Regular',
     borderWidth: 1,
     borderColor: colors.border.primary,
-    minHeight: 80,
+    minHeight: 100,
     textAlignVertical: 'top',
   },
   
-  // Button styles
+  // Button styles - Forme arrondie, dégradé logo
   primaryButton: {
-    borderRadius: 8,
-    padding: 16,
+    borderRadius: 25,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: colors.shadow,
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   
   secondaryButton: {
     backgroundColor: colors.button.secondary.background,
-    borderRadius: 8,
-    padding: 16,
+    borderRadius: 25,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.button.secondary.border,
   },
   
-  // Text styles
+  outlineButton: {
+    backgroundColor: 'transparent',
+    borderRadius: 25,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: colors.accent.pink,
+  },
+  
+  // Text styles - Typographie Poppins/Inter, hiérarchie claire
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 28,
+    fontWeight: '600',
+    fontFamily: 'Poppins-SemiBold',
     color: colors.text.primary,
     textAlign: 'center',
+    marginBottom: 8,
   },
   
   subtitle: {
     fontSize: 16,
+    fontFamily: 'Inter-Regular',
     color: colors.text.secondary,
     textAlign: 'center',
+    lineHeight: 24,
   },
   
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 20,
+    fontWeight: '600',
+    fontFamily: 'Poppins-SemiBold',
     color: colors.text.primary,
-    marginBottom: 12,
+    marginBottom: 16,
   },
   
   label: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '500',
+    fontFamily: 'Inter-Medium',
     color: colors.text.primary,
     marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   
   buttonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    fontFamily: 'Poppins-SemiBold',
+  },
+  
+  secondaryButtonText: {
     color: colors.text.primary,
     fontSize: 16,
     fontWeight: '600',
+    fontFamily: 'Poppins-SemiBold',
+  },
+  
+  accentText: {
+    color: colors.text.accent,
+    fontSize: 14,
+    fontWeight: '600',
+    fontFamily: 'Inter-SemiBold',
   },
   
   // Header styles
@@ -128,29 +203,59 @@ export const commonStyles = StyleSheet.create({
     color: colors.text.primary,
   },
   
-  // Shadow styles
+  // Shadow styles - Ombres douces 20-30%
   shadow: {
-    shadowColor: '#000',
+    shadowColor: colors.shadow,
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  
+  lightShadow: {
+    shadowColor: colors.shadow,
     shadowOffset: {
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
   
-  // Spacing
+  strongShadow: {
+    shadowColor: colors.shadow,
+    shadowOffset: {
+      width: 0,
+      height: 6,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 12,
+  },
+  
+  // Spacing - Espaces généreux
   marginBottom: {
-    marginBottom: 16,
+    marginBottom: 20,
   },
   
   marginTop: {
-    marginTop: 16,
+    marginTop: 20,
   },
   
   padding: {
-    padding: 16,
+    padding: 20,
+  },
+  
+  paddingHorizontal: {
+    paddingHorizontal: 20,
+  },
+  
+  paddingVertical: {
+    paddingVertical: 16,
   },
   
   // Flex utilities
@@ -173,5 +278,38 @@ export const commonStyles = StyleSheet.create({
   
   alignCenter: {
     alignItems: 'center',
+  },
+  
+  // Layout moderne & épuré
+  screenContainer: {
+    flex: 1,
+    backgroundColor: colors.background.primary,
+    paddingHorizontal: 20,
+    paddingTop: 40,
+  },
+  
+  contentContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  
+  headerContainer: {
+    alignItems: 'center',
+    marginBottom: 40,
+  },
+  
+  formContainer: {
+    gap: 20,
+  },
+  
+  // États interactifs
+  pressable: {
+    opacity: 1,
+  },
+  
+  pressed: {
+    opacity: 0.8,
+    transform: [{ scale: 0.98 }],
   },
 });

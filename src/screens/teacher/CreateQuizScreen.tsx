@@ -16,7 +16,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../providers/AuthProvider';
-import { supabase } from '../../lib/supabase';
+import { aiGenerateQuizByLesson, createQuizWithItems, type GeneratedQuiz } from '../../lib/db';
 import { EditQuizModal } from './EditQuizModal';
 import { colors, gradients } from '../../theme/colors';
 
@@ -32,11 +32,7 @@ interface QuizQuestion {
   explanation?: string;
 }
 
-interface GeneratedQuiz {
-  title: string;
-  description: string;
-  questions: QuizQuestion[];
-}
+// Using GeneratedQuiz type from DAO
 
 interface Message {
   id: string;
@@ -155,73 +151,15 @@ Le quiz doit être en français, avec des explications pédagogiques.`;
 
       const input = `Sujet du cours: ${lessonDescription.trim()}`;
 
-      // Appel direct à l'API OpenAI Chat Completions (plus stable)
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.EXPO_PUBLIC_OPENAI_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          temperature: 0.3,
-          max_tokens: 1500,
-          messages: [
-            {
-              role: 'system',
-              content: instructions
-            },
-            {
-              role: 'user',
-              content: input
-            }
-          ],
-          response_format: {
-            type: 'json_schema',
-            json_schema: { name: 'GeneratedQuiz', schema: quizSchema }
-          }
-        }),
-      });
-
+      // Appel via DAO (Edge Function côté serveur)
       let retryCount = 0;
-      const maxRetries = 3;
+      const maxRetries = 1;
 
       while (retryCount < maxRetries) {
         try {
-          const rawResponse = await response.text();
-
-          if (!response.ok) {
-            console.error('OpenAI API error:', response.status, rawResponse);
-            throw new Error(`OpenAI API error: ${response.status} - ${rawResponse}`);
-          }
-
           try {
-            const data = JSON.parse(rawResponse);
-            console.log('Raw OpenAI response:', data);
-            
-            // Extraction de la réponse Chat Completions
-            const quizContent = data?.choices?.[0]?.message?.content ?? '';
-            console.log('Quiz content from GPT:', quizContent);
-            
-            if (!quizContent) {
-              throw new Error('Réponse vide du modèle OpenAI');
-            }
-
-            // Vérifier si la réponse est tronquée
-            if (data?.choices?.[0]?.finish_reason === 'length') {
-              console.warn('Response was truncated due to max_tokens limit');
-              throw new Error('Réponse tronquée - augmentation des tokens nécessaire');
-            }
-
-            // Parser le JSON contenu dans la réponse
-            let quiz;
-            try {
-              quiz = JSON.parse(quizContent);
-            } catch (innerJsonError) {
-              console.error('Failed to parse inner JSON:', innerJsonError);
-              console.error('Invalid inner JSON content:', quizContent);
-              throw new Error('Le contenu JSON retourné par GPT est invalide ou incomplet');
-            }
+            const quiz = await aiGenerateQuizByLesson(lessonDescription, quizSchema as any, instructions);
+            console.log('Edge Function quiz payload:', quiz);
 
             // Vérifier que le quiz a bien 10 questions
             if (!quiz.questions || quiz.questions.length !== 10) {
@@ -254,8 +192,7 @@ Le quiz doit être en français, avec des explications pédagogiques.`;
             console.log('Successfully parsed and normalized quiz:', quiz);
             return quiz as GeneratedQuiz;
           } catch (jsonError) {
-            console.error(`JSON parsing error (attempt ${retryCount + 1}):`, jsonError);
-            console.error('Invalid JSON response:', rawResponse);
+            console.error(`Edge Function payload error (attempt ${retryCount + 1}):`, jsonError);
             
             if (retryCount < maxRetries - 1) {
               // Wait for 1 second before retrying
@@ -317,9 +254,14 @@ Le quiz doit être en français, avec des explications pédagogiques.`;
         
         addMessage(`J'ai créé un quiz "${quiz?.title}" avec ${quiz?.questions.length} questions pour vous :`, false, quiz);
       }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
-      addMessage(`Erreur: ${errorMessage}`, false);
+    } catch (error: any) {
+      // Surface EF error details when available
+      const status = error?.status;
+      const message = error?.message || (error instanceof Error ? error.message : 'Erreur inconnue');
+      const contextBody = error?.context?.body;
+      console.error('EF error', status, message, contextBody);
+      addMessage(`Erreur génération (${status ?? 'n/a'}): ${message}`, false);
+      Alert.alert('Erreur', `Erreur génération (${status ?? 'n/a'}) : ${message}`);
     } finally {
       setIsGenerating(false);
     }
@@ -333,42 +275,14 @@ Le quiz doit être en français, avec des explications pédagogiques.`;
 
     setIsSaving(true);
     try {
-      // Create quiz in Supabase
-      const { data: quizData, error: quizError } = await supabase
-        .from('quizzes')
-        .insert({
-          title: quiz.title,
-          description: quiz.description,
-          level: 'CE1', // Default level, could be made configurable
-          owner_id: profile.id,
-          school_id: profile.school_id,
-          classroom_id: profile.classroom_id,
-          is_published: isPublished,
-          published_at: isPublished ? new Date().toISOString() : null,
-          unpublish_at: isPublished ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() : null
-        })
-        .select()
-        .single();
-
-      if (quizError) throw quizError;
-
-      // Create quiz items (questions) - including explanation
-      const quizItems = quiz.questions.map((question, index) => ({
-        quiz_id: quizData.id,
-        school_id: profile.school_id,
-        classroom_id: profile.classroom_id,
-        question: question.question,
-        choices: question.choices,
-        answer_keys: question.answer_keys,
-        explanation: question.explanation,
-        order_index: index
-      }));
-
-      const { error: itemsError } = await supabase
-        .from('quiz_items')
-        .insert(quizItems);
-
-      if (itemsError) throw itemsError;
+      // Create quiz and items via DAO
+      await createQuizWithItems({
+        quiz,
+        owner_id: profile.id,
+        school_id: profile.school_id!,
+        classroom_id: profile.classroom_id!,
+        is_published: isPublished,
+      });
 
       // Custom success messages based on action type
       const successMessages = {

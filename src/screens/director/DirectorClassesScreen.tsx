@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, TextInput, Alert, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../providers/AuthProvider';
-import { supabase } from '../../lib/supabase';
+import { listClassroomsBySchool, createClassroom } from '../../lib/db';
 import { colors } from '../../theme/colors';
 
 // Type for classrooms table
@@ -37,13 +37,8 @@ export function DirectorClassesScreen() {
     }
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('classrooms')
-        .select('id, name, grade, school_id, created_at')
-        .eq('school_id', profile.school_id)
-        .order('name');
-      if (error) throw error;
-      setClasses(data || []);
+      const data = await listClassroomsBySchool(profile.school_id);
+      setClasses(data);
     } catch (e) {
       console.error('Failed to fetch classes', e);
       Alert.alert('Erreur', "Impossible de charger les classes");
@@ -64,37 +59,14 @@ export function DirectorClassesScreen() {
     }
     try {
       setCreating(true);
-      const { data, error } = await supabase
-        .from('classrooms')
-        .insert({ name: newName.trim(), grade: newGrade, school_id: profile.school_id })
-        .select('id, name, grade, school_id, created_at')
-        .single();
-      if (error) throw error;
-      setClasses(prev => [data as ClassroomRow, ...prev]);
+      const created = await createClassroom({ name: newName.trim(), grade: newGrade, school_id: profile.school_id });
+      setClasses(prev => [created as ClassroomRow, ...prev]);
       setNewName('');
       setNewGrade('CP');
       Alert.alert('Succès', 'Classe créée');
     } catch (e: any) {
       console.error('Create class error', e);
-      // Fallback: try Edge Function that uses service role to perform a guarded insert
-      try {
-        const { data, error: fnError } = await supabase.functions.invoke('director_create_classroom', {
-          body: {
-            name: newName.trim(),
-            grade: newGrade,
-            school_id: profile.school_id,
-          },
-        });
-        if (fnError) throw fnError;
-        // Refresh classes after function success
-        await fetchClasses();
-        setNewName('');
-        setNewGrade('CP');
-        Alert.alert('Succès', 'Classe créée');
-      } catch (fnErr: any) {
-        console.error('Create class via function error', fnErr);
-        Alert.alert('Erreur', `Impossible de créer la classe. ${fnErr?.message || ''}`.trim());
-      }
+      Alert.alert('Erreur', `Impossible de créer la classe. ${e?.message || ''}`.trim());
     } finally {
       setCreating(false);
     }

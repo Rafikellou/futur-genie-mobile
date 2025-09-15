@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, KeyboardAvo
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../providers/AuthProvider';
 import { supabase } from '../../lib/supabase';
+import { directorOnboardingComplete } from '../../lib/db';
 import { colors } from '../../theme/colors';
 
 export function DirectorOnboarding() {
@@ -20,15 +21,8 @@ export function DirectorOnboarding() {
     try {
       setLoading(true);
       
-      // Use the new combined onboarding function
-      const { data, error: fnError } = await supabase.functions.invoke('director_onboarding_complete', {
-        body: { 
-          schoolName: schoolName.trim(),
-          fullName: fullName.trim() || null
-        },
-      });
-      
-      if (fnError) throw fnError;
+      // Use the new combined onboarding function via DAO
+      const data = await directorOnboardingComplete(schoolName.trim(), fullName.trim() || '');
       
       // Refresh JWT to include updated app_metadata (school_id)
       await supabase.auth.refreshSession();
