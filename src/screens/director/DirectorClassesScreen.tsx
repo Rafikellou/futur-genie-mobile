@@ -17,7 +17,7 @@ interface ClassroomRow {
 const GRADES: ClassroomRow['grade'][] = ['CP', 'CE1', 'CE2', 'CM1', 'CM2', '6EME', '5EME', '4EME', '3EME'];
 
 export function DirectorClassesScreen() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [classes, setClasses] = useState<ClassroomRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -31,13 +31,15 @@ export function DirectorClassesScreen() {
   }, [classes, query]);
 
   const fetchClasses = async () => {
-    if (!profile?.school_id) {
+    // Use profile.school_id first, fallback to user app_metadata
+    const schoolId = profile?.school_id || user?.app_metadata?.school_id;
+    if (!schoolId) {
       setLoading(false);
       return;
     }
     try {
       setLoading(true);
-      const data = await listClassroomsBySchool(profile.school_id);
+      const data = await listClassroomsBySchool(schoolId);
       setClasses(data);
     } catch (e) {
       console.error('Failed to fetch classes', e);
@@ -49,17 +51,18 @@ export function DirectorClassesScreen() {
 
   useEffect(() => {
     fetchClasses();
-  }, [profile?.school_id]);
+  }, [profile?.school_id, user?.app_metadata?.school_id]);
 
   const onCreate = async () => {
-    if (!profile?.school_id) return;
+    const schoolId = profile?.school_id || user?.app_metadata?.school_id;
+    if (!schoolId) return;
     if (!newName.trim()) {
       Alert.alert('Nom requis', 'Veuillez saisir un nom de classe');
       return;
     }
     try {
       setCreating(true);
-      const created = await createClassroom({ name: newName.trim(), grade: newGrade, school_id: profile.school_id });
+      const created = await createClassroom({ name: newName.trim(), grade: newGrade, school_id: schoolId });
       setClasses(prev => [created as ClassroomRow, ...prev]);
       setNewName('');
       setNewGrade('CP');

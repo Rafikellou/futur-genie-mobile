@@ -28,7 +28,7 @@ interface Suggestion {
 }
 
 export function SuggestionsScreen() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [type, setType] = useState<'suggestion' | 'bug'>('suggestion');
@@ -40,7 +40,9 @@ export function SuggestionsScreen() {
 
   const fetchSuggestions = async () => {
     try {
-      if (!profile?.id) {
+      // Use profile.id first, fallback to user.id
+      const userId = profile?.id || user?.id;
+      if (!userId) {
         setError('Profil non trouvé');
         return;
       }
@@ -48,7 +50,7 @@ export function SuggestionsScreen() {
       const { data, error } = await supabase
         .from('suggestions')
         .select('*')
-        .eq('user_id', profile.id)
+        .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -66,7 +68,7 @@ export function SuggestionsScreen() {
 
   useEffect(() => {
     fetchSuggestions();
-  }, []);
+  }, [profile?.id, user?.id]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -79,7 +81,9 @@ export function SuggestionsScreen() {
       return;
     }
 
-    if (!profile?.id) {
+    // Use profile.id first, fallback to user.id
+    const userId = profile?.id || user?.id;
+    if (!userId) {
       Alert.alert('Erreur', 'Profil non trouvé');
       return;
     }
@@ -89,7 +93,7 @@ export function SuggestionsScreen() {
       const { error } = await supabase
         .from('suggestions')
         .insert({
-          user_id: profile.id,
+          user_id: userId,
           title: title.trim(),
           description: description.trim(),
           type,

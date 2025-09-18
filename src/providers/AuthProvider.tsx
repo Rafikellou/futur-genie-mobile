@@ -139,6 +139,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             return
           } else {
             console.warn(`⚠️ RPC returned empty result on attempt ${attempt}`)
+            // If we get empty results after multiple attempts, break to fallback
+            if (attempt >= 3) {
+              console.log('🔄 Breaking to fallback after multiple empty results')
+              break
+            }
           }
         }
         // Small backoff to wait for Edge Function & JWT refresh to settle
@@ -152,7 +157,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         let am: any = sess?.session?.user?.app_metadata || {}
         let um: any = sess?.session?.user?.user_metadata || {}
         // If app_metadata seems incomplete (no school/class), fetch fresh user from server
-        if (!am?.school_id || !am?.classroom_id) {
+        if (!am?.school_id && !am?.classroom_id) {
           const fresh = await supabase.auth.getUser()
           if (fresh?.data?.user) {
             am = fresh.data.user.app_metadata || am
@@ -172,6 +177,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
           console.log('🧩 Using synthesized profile from app_metadata:', synthesized)
           setProfile(synthesized)
+          setLoading(false)
           return
         }
       } catch (e) {

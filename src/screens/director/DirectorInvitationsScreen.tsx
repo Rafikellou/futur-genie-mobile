@@ -27,13 +27,15 @@ type InviteRole = 'PARENT' | 'TEACHER';
 type InviteMapPerClass = Record<string, { PARENT: InvitationLinkRow | null; TEACHER: InvitationLinkRow | null }>;
 
 export function DirectorInvitationsScreen() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [classes, setClasses] = useState<Classroom[]>([]);
   const [invites, setInvites] = useState<InviteMapPerClass>({});
   const [loading, setLoading] = useState(true);
 
   const fetchData = async () => {
-    if (!profile?.school_id) {
+    // Use profile.school_id first, fallback to user app_metadata
+    const schoolId = profile?.school_id || user?.app_metadata?.school_id;
+    if (!schoolId) {
       setLoading(false);
       return;
     }
@@ -42,7 +44,7 @@ export function DirectorInvitationsScreen() {
       const { data, error } = await supabase
         .from('classrooms')
         .select('id, name, grade')
-        .eq('school_id', profile.school_id)
+        .eq('school_id', schoolId)
         .order('name');
       if (error) throw error;
       setClasses(data || []);
@@ -52,13 +54,13 @@ export function DirectorInvitationsScreen() {
       for (const cls of data || []) {
         const entry: { PARENT: InvitationLinkRow | null; TEACHER: InvitationLinkRow | null } = { PARENT: null, TEACHER: null };
         try {
-          const linkParent = await ensureParentInvitationLink(cls.id, profile.school_id, profile.id);
+          const linkParent = await ensureParentInvitationLink(cls.id, schoolId, profile?.id || user?.id);
           entry.PARENT = linkParent as unknown as InvitationLinkRow;
         } catch (e) {
           console.warn('No parent invitation for classroom', cls.id, e);
         }
         try {
-          const linkTeacher = await ensureTeacherInvitationLink(cls.id, profile.school_id, profile.id);
+          const linkTeacher = await ensureTeacherInvitationLink(cls.id, schoolId, profile?.id || user?.id);
           entry.TEACHER = linkTeacher as unknown as InvitationLinkRow;
         } catch (e) {
           // May fail if policies forbid or if not director; safe to ignore per class
@@ -75,7 +77,7 @@ export function DirectorInvitationsScreen() {
     }
   };
 
-  useEffect(() => { fetchData(); }, [profile?.school_id]);
+  useEffect(() => { fetchData(); }, [profile?.school_id, user?.app_metadata?.school_id]);
 
   const copyLink = async (clsId: string, role: InviteRole) => {
     const inv = invites[clsId]?.[role];
@@ -97,12 +99,13 @@ export function DirectorInvitationsScreen() {
   };
 
   const generateParentLink = async (clsId: string) => {
-    if (!profile?.school_id) {
+    const schoolId = profile?.school_id || user?.app_metadata?.school_id;
+    if (!schoolId) {
       Alert.alert('Erreur', "Aucune école associée au profil directeur");
       return;
     }
     try {
-      const link = await ensureParentInvitationLink(clsId, profile.school_id as string, profile.id);
+      const link = await ensureParentInvitationLink(clsId, schoolId, profile?.id || user?.id);
       setInvites(prev => ({
         ...prev,
         [clsId]: { ...(prev[clsId] || { PARENT: null, TEACHER: null }), PARENT: link as any },
@@ -115,12 +118,13 @@ export function DirectorInvitationsScreen() {
   };
 
   const generateTeacherLink = async (clsId: string) => {
-    if (!profile?.school_id) {
+    const schoolId = profile?.school_id || user?.app_metadata?.school_id;
+    if (!schoolId) {
       Alert.alert('Erreur', "Aucune école associée au profil directeur");
       return;
     }
     try {
-      const link = await ensureTeacherInvitationLink(clsId, profile.school_id as string, profile.id);
+      const link = await ensureTeacherInvitationLink(clsId, schoolId, profile?.id || user?.id);
       setInvites(prev => ({
         ...prev,
         [clsId]: { ...(prev[clsId] || { PARENT: null, TEACHER: null }), TEACHER: link as any },

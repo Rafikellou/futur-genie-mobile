@@ -47,7 +47,7 @@ const chartWidth = width - 40;
 const barWidth = (chartWidth - 60) / 30; // 30 days with spacing
 
 export function ProgressTab() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [availableQuizzes, setAvailableQuizzes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,7 +56,11 @@ export function ProgressTab() {
 
   const fetchData = async () => {
     try {
-      if (!profile?.id || !profile?.classroom_id) {
+      // Use profile data first, fallback to user app_metadata
+      const userId = profile?.id || user?.id;
+      const classroomId = profile?.classroom_id || user?.app_metadata?.classroom_id;
+      
+      if (!userId || !classroomId) {
         setError('Profil non trouvé');
         return;
       }
@@ -78,7 +82,7 @@ export function ProgressTab() {
             title
           )
         `)
-        .eq('parent_id', profile.id)
+        .eq('parent_id', userId)
         .gte('completed_at', thirtyDaysAgo.toISOString())
         .order('completed_at', { ascending: false });
 
@@ -88,7 +92,7 @@ export function ProgressTab() {
       const { data: quizzesData, error: quizzesError } = await supabase
         .from('quizzes')
         .select('id, title, created_at')
-        .eq('classroom_id', profile.classroom_id)
+        .eq('classroom_id', classroomId)
         .eq('is_published', true)
         .gte('created_at', thirtyDaysAgo.toISOString());
 
@@ -113,7 +117,7 @@ export function ProgressTab() {
 
   useEffect(() => {
     fetchData();
-  }, [profile?.id, profile?.classroom_id]);
+  }, [profile?.id, profile?.classroom_id, user?.id, user?.app_metadata?.classroom_id]);
 
   const onRefresh = () => {
     setRefreshing(true);

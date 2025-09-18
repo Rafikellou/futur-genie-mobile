@@ -13,7 +13,31 @@ import { supabase } from '../../lib/supabase';
 import { colors } from '../../theme/colors';
 
 export function ProfileScreen() {
-  const { profile, signOut } = useAuth();
+  const { profile, user, signOut } = useAuth();
+
+  // Helper functions to get data with fallback
+  const getFullName = () => {
+    return profile?.full_name || 
+           (user?.user_metadata?.first_name && user?.user_metadata?.last_name 
+             ? `${user.user_metadata.first_name} ${user.user_metadata.last_name}` 
+             : user?.email?.split('@')[0] || 'Utilisateur');
+  };
+
+  const getEmail = () => {
+    return profile?.email || user?.email || 'Non disponible';
+  };
+
+  const getRole = () => {
+    return profile?.role || user?.app_metadata?.role || 'Non défini';
+  };
+
+  const getSchoolId = () => {
+    return profile?.school_id || user?.app_metadata?.school_id;
+  };
+
+  const getClassroomId = () => {
+    return profile?.classroom_id || user?.app_metadata?.classroom_id;
+  };
 
   const handleSignOut = () => {
     Alert.alert(
@@ -59,12 +83,12 @@ export function ProfileScreen() {
           <Ionicons name="person-circle" size={80} color="#e5e7eb" />
         </View>
         <Text style={styles.userName}>
-          {profile?.full_name}
+          {getFullName()}
         </Text>
-        <Text style={styles.userEmail}>{profile?.email}</Text>
-        <View style={[styles.roleBadge, { backgroundColor: getRoleColor(profile?.role || '') }]}>
+        <Text style={styles.userEmail}>{getEmail()}</Text>
+        <View style={[styles.roleBadge, { backgroundColor: getRoleColor(getRole()) }]}>
           <Text style={styles.roleText}>
-            {getRoleDisplayName(profile?.role || '')}
+            {getRoleDisplayName(getRole())}
           </Text>
         </View>
       </View>
@@ -77,7 +101,7 @@ export function ProfileScreen() {
             <Ionicons name="mail-outline" size={20} color="#6b7280" />
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>Email</Text>
-              <Text style={styles.infoValue}>{profile?.email}</Text>
+              <Text style={styles.infoValue}>{getEmail()}</Text>
             </View>
           </View>
           
@@ -86,7 +110,7 @@ export function ProfileScreen() {
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>Nom complet</Text>
               <Text style={styles.infoValue}>
-                {profile?.full_name}
+                {getFullName()}
               </Text>
             </View>
           </View>
@@ -96,12 +120,12 @@ export function ProfileScreen() {
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>Rôle</Text>
               <Text style={styles.infoValue}>
-                {getRoleDisplayName(profile?.role || '')}
+                {getRoleDisplayName(getRole())}
               </Text>
             </View>
           </View>
           
-          {profile?.school_id && (
+          {getSchoolId() && (
             <View style={styles.infoRow}>
               <Ionicons name="school-outline" size={20} color="#6b7280" />
               <View style={styles.infoContent}>
@@ -111,7 +135,7 @@ export function ProfileScreen() {
             </View>
           )}
           
-          {profile?.classroom_id && (
+          {getClassroomId() && (
             <View style={styles.infoRow}>
               <Ionicons name="library-outline" size={20} color="#6b7280" />
               <View style={styles.infoContent}>

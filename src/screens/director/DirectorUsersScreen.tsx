@@ -18,7 +18,7 @@ interface UserRow {
 type Filter = 'ALL' | 'TEACHER' | 'PARENT';
 
 export function DirectorUsersScreen() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
@@ -32,13 +32,15 @@ export function DirectorUsersScreen() {
   }, [users, query, filter]);
 
   const fetchUsers = async () => {
-    if (!profile?.school_id) { setLoading(false); return; }
+    // Use profile.school_id first, fallback to user app_metadata
+    const schoolId = profile?.school_id || user?.app_metadata?.school_id;
+    if (!schoolId) { setLoading(false); return; }
     try {
       setLoading(true);
       const { data, error } = await supabase
         .from('users')
         .select('id, role, school_id, classroom_id, email, full_name, created_at')
-        .eq('school_id', profile.school_id)
+        .eq('school_id', schoolId)
         .order('created_at', { ascending: false });
       if (error) throw error;
       setUsers(data || []);
@@ -50,7 +52,7 @@ export function DirectorUsersScreen() {
     }
   };
 
-  useEffect(() => { fetchUsers(); }, [profile?.school_id]);
+  useEffect(() => { fetchUsers(); }, [profile?.school_id, user?.app_metadata?.school_id]);
 
   const HeaderStats = () => {
     const teachers = users.filter(u => u.role === 'TEACHER').length;

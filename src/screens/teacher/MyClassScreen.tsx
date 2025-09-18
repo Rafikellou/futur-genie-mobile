@@ -48,7 +48,7 @@ type SortField = 'name' | 'quizzes' | 'score' | 'time';
 type SortOrder = 'asc' | 'desc';
 
 export function MyClassScreen() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -61,9 +61,11 @@ export function MyClassScreen() {
 
   const fetchClassroomInfo = async () => {
     try {
-      if (!profile?.classroom_id) return;
+      // Use profile.classroom_id first, fallback to user app_metadata
+      const classroomId = profile?.classroom_id || user?.app_metadata?.classroom_id;
+      if (!classroomId) return;
       
-      const classroom = await getClassroomById(profile.classroom_id);
+      const classroom = await getClassroomById(classroomId);
       setClassroomInfo(classroom);
     } catch (err) {
       console.error('Error fetching classroom info:', err);
@@ -72,7 +74,9 @@ export function MyClassScreen() {
 
   const fetchStudents = async () => {
     try {
-      if (!profile?.classroom_id) {
+      // Use profile.classroom_id first, fallback to user app_metadata
+      const classroomId = profile?.classroom_id || user?.app_metadata?.classroom_id;
+      if (!classroomId) {
         setError('Aucune classe assignée');
         return;
       }
@@ -81,7 +85,7 @@ export function MyClassScreen() {
       const { data: studentsData, error: studentsError } = await supabase
         .from('users')
         .select('id, full_name, child_first_name, email')
-        .eq('classroom_id', profile.classroom_id)
+        .eq('classroom_id', classroomId)
         .eq('role', 'PARENT');
 
       if (studentsError) throw studentsError;
@@ -192,7 +196,11 @@ export function MyClassScreen() {
   };
 
   const generateInvitationLink = async () => {
-    if (!profile?.classroom_id || !profile?.school_id) {
+    const classroomId = profile?.classroom_id || user?.app_metadata?.classroom_id;
+    const schoolId = profile?.school_id || user?.app_metadata?.school_id;
+    const userId = profile?.id || user?.id;
+    
+    if (!classroomId || !schoolId) {
       Alert.alert('Erreur', 'Informations de classe manquantes');
       return;
     }
@@ -200,9 +208,9 @@ export function MyClassScreen() {
     setGeneratingLink(true);
     try {
       const link = await ensureParentInvitationLink(
-        profile.classroom_id,
-        profile.school_id,
-        profile.id
+        classroomId,
+        schoolId,
+        userId
       );
       setInvitationLink(link);
     } catch (err) {
@@ -240,7 +248,7 @@ export function MyClassScreen() {
   useEffect(() => {
     fetchStudents();
     fetchClassroomInfo();
-  }, []);
+  }, [profile?.classroom_id, user?.app_metadata?.classroom_id]);
 
   const onRefresh = () => {
     setRefreshing(true);

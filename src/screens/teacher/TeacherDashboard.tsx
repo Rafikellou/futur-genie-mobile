@@ -53,7 +53,7 @@ interface QuizChoice {
 }
 
 export function TeacherDashboard() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const navigation = useNavigation();
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,7 +64,9 @@ export function TeacherDashboard() {
 
   const fetchQuizzes = async () => {
     try {
-      if (!profile?.id) {
+      // Use profile.id first, fallback to user.id
+      const userId = profile?.id || user?.id;
+      if (!userId) {
         setError('Profil non trouvé');
         return;
       }
@@ -81,7 +83,7 @@ export function TeacherDashboard() {
           unpublish_at,
           submissions!inner(count)
         `)
-        .eq('owner_id', profile.id)
+        .eq('owner_id', userId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -107,7 +109,7 @@ export function TeacherDashboard() {
 
   useEffect(() => {
     fetchQuizzes();
-  }, [profile?.id]);
+  }, [profile?.id, user?.id]);
 
   const onRefresh = () => {
     setRefreshing(true);

@@ -44,7 +44,7 @@ const futureActivities: ActivityCategory[] = [
 ];
 
 export function ActivitiesTab() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const navigation = useNavigation();
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,7 +55,9 @@ export function ActivitiesTab() {
 
   const fetchQuizzes = async () => {
     try {
-      if (!profile?.classroom_id) {
+      // Use profile.classroom_id first, fallback to user app_metadata
+      const classroomId = profile?.classroom_id || user?.app_metadata?.classroom_id;
+      if (!classroomId) {
         setError('Aucune classe assignée');
         return;
       }
@@ -79,11 +81,14 @@ export function ActivitiesTab() {
             parent_id
           )
         `)
-        .eq('classroom_id', profile.classroom_id)
+        .eq('classroom_id', classroomId)
         .eq('is_published', true)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
+
+      // Use profile.id first, fallback to user.id
+      const userId = profile?.id || user?.id;
 
       // Transform the data and filter submissions for current parent
       const transformedQuizzes = (data || []).map(quiz => ({
@@ -91,7 +96,7 @@ export function ActivitiesTab() {
         teacher: quiz.users && Array.isArray(quiz.users) && quiz.users[0] ? 
           { full_name: quiz.users[0].full_name } : 
           { full_name: 'Enseignant inconnu' },
-        submissions: (quiz.submissions || []).filter(sub => sub.parent_id === profile.id)
+        submissions: (quiz.submissions || []).filter(sub => sub.parent_id === userId)
       }));
       
       setQuizzes(transformedQuizzes);
@@ -107,7 +112,7 @@ export function ActivitiesTab() {
 
   useEffect(() => {
     fetchQuizzes();
-  }, [profile?.classroom_id]);
+  }, [profile?.classroom_id, user?.app_metadata?.classroom_id]);
 
   const onRefresh = () => {
     setRefreshing(true);
