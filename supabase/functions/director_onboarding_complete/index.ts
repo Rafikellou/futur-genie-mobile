@@ -3,6 +3,18 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 Deno.serve(async (req: Request) => {
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 200,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      },
+    });
+  }
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
@@ -11,7 +23,10 @@ Deno.serve(async (req: Request) => {
     if (!supabaseUrl || !anonKey || !serviceKey) {
       return new Response(JSON.stringify({ error: "Missing Supabase env" }), {
         status: 500,
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
       });
     }
 
@@ -25,7 +40,10 @@ Deno.serve(async (req: Request) => {
     if (userErr || !userRes?.user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
       });
     }
     const authUser = userRes.user;
@@ -38,7 +56,10 @@ Deno.serve(async (req: Request) => {
     if (!schoolName) {
       return new Response(JSON.stringify({ error: "Missing school name" }), {
         status: 400,
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
       });
     }
 
@@ -69,7 +90,10 @@ Deno.serve(async (req: Request) => {
       if (profileErr) {
         return new Response(JSON.stringify({ error: `Profile creation failed: ${profileErr.message}` }), {
           status: 400,
-          headers: { "Content-Type": "application/json" },
+          headers: { 
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
         });
       }
       userProfile = newProfile;
@@ -89,7 +113,10 @@ Deno.serve(async (req: Request) => {
         if (updateErr) {
           return new Response(JSON.stringify({ error: `Profile update failed: ${updateErr.message}` }), {
             status: 400,
-            headers: { "Content-Type": "application/json" },
+            headers: { 
+              "Content-Type": "application/json",
+              "Access-Control-Allow-Origin": "*",
+            },
           });
         }
         userProfile = updatedProfile;
@@ -110,7 +137,10 @@ Deno.serve(async (req: Request) => {
       if (schoolErr) {
         return new Response(JSON.stringify({ error: `School creation failed: ${schoolErr.message}` }), {
           status: 400,
-          headers: { "Content-Type": "application/json" },
+          headers: { 
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
         });
       }
       school = newSchool;
@@ -124,7 +154,10 @@ Deno.serve(async (req: Request) => {
       if (linkErr) {
         return new Response(JSON.stringify({ error: `User-school linking failed: ${linkErr.message}` }), {
           status: 400,
-          headers: { "Content-Type": "application/json" },
+          headers: { 
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
         });
       }
     } else {
@@ -138,7 +171,10 @@ Deno.serve(async (req: Request) => {
       if (schoolFetchErr) {
         return new Response(JSON.stringify({ error: `School fetch failed: ${schoolFetchErr.message}` }), {
           status: 400,
-          headers: { "Content-Type": "application/json" },
+          headers: { 
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
         });
       }
       school = existingSchool;
@@ -174,7 +210,10 @@ Deno.serve(async (req: Request) => {
       },
     }), {
       status: 200,
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
     });
     
   } catch (e) {
@@ -184,7 +223,10 @@ Deno.serve(async (req: Request) => {
       details: e instanceof Error ? e.message : String(e)
     }), {
       status: 500,
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
     });
   }
 });

@@ -7,6 +7,7 @@ import { useAuth } from '../../providers/AuthProvider';
 import { colors } from '../../theme/colors';
 import { supabase } from '../../lib/supabase';
 import { ensureParentInvitationLink, ensureTeacherInvitationLink, generateInvitationUrl, revokeInvitationForClassRole } from '../../lib/db';
+import { generateInvitationInstructionsShort } from '../../utils/invitationText';
 
 interface Classroom {
   id: string;
@@ -87,6 +88,16 @@ export function DirectorInvitationsScreen() {
     Alert.alert('Lien copié', `Le lien ${role === 'PARENT' ? 'parents' : 'enseignant'} a été copié dans le presse-papiers`);
   };
 
+  const copyInvitationInstructions = async (clsId: string, role: InviteRole) => {
+    const inv = invites[clsId]?.[role];
+    if (!inv) return;
+    const schoolName = profile?.school_name || 'Votre école';
+    const className = classes.find(c => c.id === clsId)?.name;
+    const instructions = generateInvitationInstructionsShort(inv.token, schoolName, className, role);
+    await Clipboard.setStringAsync(instructions);
+    Alert.alert('Instructions copiées', `Instructions d'invitation ${role === 'PARENT' ? 'parents' : 'enseignant'} copiées dans le presse-papiers`);
+  };
+
   const revokeLink = async (clsId: string, role: InviteRole) => {
     try {
       await revokeInvitationForClassRole(clsId, role);
@@ -153,21 +164,13 @@ export function DirectorInvitationsScreen() {
           <Text style={styles.rowText}>Lien Parents</Text>
         </View>
         <View style={styles.actions}>
-          <TouchableOpacity style={styles.btn} onPress={() => copyLink(item.id, 'PARENT')} disabled={!invParent}>
-            <Ionicons name="copy-outline" size={18} color="#fff" />
-            <Text style={styles.btnText}>Copier</Text>
+          <TouchableOpacity style={[styles.btn, { backgroundColor: '#059669' }]} onPress={() => copyInvitationInstructions(item.id, 'PARENT')} disabled={!invParent}>
+            <Ionicons name="document-text-outline" size={18} color="#fff" />
+            <Text style={styles.btnText}>Instructions</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.btn, { backgroundColor: '#b91c1c' }]} onPress={() => revokeLink(item.id, 'PARENT')} disabled={!invParent}>
             <Ionicons name="close-circle-outline" size={18} color="#fff" />
             <Text style={styles.btnText}>Révoquer</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.btn, { backgroundColor: '#374151' }]} 
-            onPress={() => urlParent && Linking.openURL(urlParent)}
-            disabled={!urlParent}
-          >
-            <Ionicons name="open-outline" size={18} color="#fff" />
-            <Text style={styles.btnText}>Tester</Text>
           </TouchableOpacity>
         </View>
         {!invParent ? (
@@ -188,21 +191,13 @@ export function DirectorInvitationsScreen() {
           <Text style={styles.rowText}>Lien Enseignant</Text>
         </View>
         <View style={styles.actions}>
-          <TouchableOpacity style={styles.btn} onPress={() => copyLink(item.id, 'TEACHER')} disabled={!invTeacher}>
-            <Ionicons name="copy-outline" size={18} color="#fff" />
-            <Text style={styles.btnText}>Copier</Text>
+          <TouchableOpacity style={[styles.btn, { backgroundColor: '#059669' }]} onPress={() => copyInvitationInstructions(item.id, 'TEACHER')} disabled={!invTeacher}>
+            <Ionicons name="document-text-outline" size={18} color="#fff" />
+            <Text style={styles.btnText}>Instructions</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.btn, { backgroundColor: '#b91c1c' }]} onPress={() => revokeLink(item.id, 'TEACHER')} disabled={!invTeacher}>
             <Ionicons name="close-circle-outline" size={18} color="#fff" />
             <Text style={styles.btnText}>Révoquer</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.btn, { backgroundColor: '#374151' }]} 
-            onPress={() => urlTeacher && Linking.openURL(urlTeacher)}
-            disabled={!urlTeacher}
-          >
-            <Ionicons name="open-outline" size={18} color="#fff" />
-            <Text style={styles.btnText}>Tester</Text>
           </TouchableOpacity>
         </View>
         {!invTeacher ? (

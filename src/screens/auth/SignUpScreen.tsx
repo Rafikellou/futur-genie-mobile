@@ -9,8 +9,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Image,
 } from 'react-native';
-import * as Clipboard from 'expo-clipboard';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { useAuth } from '../../providers/AuthProvider';
 import { AuthStackParamList } from '../../navigation/AuthStack';
@@ -35,30 +35,6 @@ export function SignUpScreen({ navigation }: Props) {
   const [schoolName, setSchoolName] = useState('');
   const [loading, setLoading] = useState(false);
   const { signUp, refreshProfile } = useAuth();
-  const handleInviteLink = async () => {
-    try {
-      const text = await Clipboard.getStringAsync();
-      if (text && (text.includes('/invite') || text.includes('invite?'))) {
-        const match = /[?&]token=([^&]+)/.exec(text);
-        const token = match?.[1];
-        if (token) {
-          navigation.navigate('InviteEntry' as any, { token });
-        } else {
-          Alert.alert(
-            'Lien invalide',
-            "Le lien d'invitation ne contient pas de token valide."
-          );
-        }
-      } else {
-        Alert.alert(
-          "Lien non détecté",
-          "Copiez un lien d'invitation (se terminant par /invite?token=...) puis réessayez."
-        );
-      }
-    } catch (e) {
-      Alert.alert('Erreur', "Impossible d'accéder au presse-papiers");
-    }
-  };
 
   const handleDirectorSignUp = async () => {
     if (!email || !password || !fullName || !schoolName) {
@@ -149,11 +125,13 @@ export function SignUpScreen({ navigation }: Props) {
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={commonStyles.headerContainer}>
-          {/* Logo placeholder */}
+          {/* Logo Futur Génie */}
           <View style={styles.logoContainer}>
-            <View style={styles.logoPlaceholder}>
-              <Text style={styles.logoText}>🔥</Text>
-            </View>
+            <Image 
+              source={require('../../../public/logo-principal.png')}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
           </View>
           
           <Text style={commonStyles.title}>Créer un compte Directeur</Text>
@@ -236,14 +214,28 @@ export function SignUpScreen({ navigation }: Props) {
             style={styles.signUpButton}
           />
 
-          <TouchableOpacity style={[commonStyles.secondaryButton, styles.inviteButton]} onPress={handleInviteLink}>
-            <Text style={commonStyles.secondaryButtonText}>J'ai un lien d'invitation</Text>
-          </TouchableOpacity>
 
-          <View style={styles.loginContainer}>
-            <Text style={styles.loginText}>Déjà un compte ? </Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-              <Text style={[commonStyles.accentText, styles.loginLink]}>Se connecter</Text>
+          <View style={styles.navigationContainer}>
+            <Text style={styles.navigationText}>
+              Vous avez déjà un compte ?
+            </Text>
+            <TouchableOpacity 
+              style={styles.actionButton} 
+              onPress={() => navigation.navigate('Login')}
+            >
+              <Text style={styles.actionButtonText}>Se connecter</Text>
+            </TouchableOpacity>
+          </View>
+          
+          <View style={styles.invitationContainer}>
+            <Text style={styles.invitationText}>
+              Je veux créer un compte en tant que parent ou enseignant d'une école et classe déjà créés.
+            </Text>
+            <TouchableOpacity 
+              style={styles.actionButton} 
+              onPress={() => navigation.navigate('UnifiedInvitationSignUp')}
+            >
+              <Text style={styles.actionButtonText}>Créer avec un jeton d'invitation</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -263,17 +255,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 24,
   },
-  logoPlaceholder: {
+  logoImage: {
     width: 80,
     height: 80,
-    borderRadius: 40,
-    backgroundColor: colors.background.secondary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...commonStyles.shadow,
-  },
-  logoText: {
-    fontSize: 40,
   },
   infoContainer: {
     backgroundColor: colors.background.secondary,
@@ -300,21 +284,44 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 16,
   },
-  inviteButton: {
-    marginBottom: 24,
+  navigationContainer: {
+    marginTop: 16,
+    paddingHorizontal: 20,
   },
-  loginContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+  navigationText: {
+    fontSize: 14,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    fontFamily: 'Inter-Regular',
+    marginBottom: 8,
+  },
+  invitationContainer: {
+    marginTop: 16,
+    paddingHorizontal: 20,
+  },
+  invitationText: {
+    fontSize: 14,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    fontFamily: 'Inter-Regular',
+    marginBottom: 8,
+  },
+  actionButton: {
+    backgroundColor: colors.background.secondary,
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.border.primary,
     alignItems: 'center',
   },
-  loginText: {
-    fontSize: 16,
-    color: colors.text.secondary,
-    fontFamily: 'Inter-Regular',
-  },
-  loginLink: {
-    fontSize: 16,
+  actionButtonText: {
+    fontSize: 14,
+    color: colors.text.primary,
     fontWeight: '600',
+    fontFamily: 'Inter-Medium',
   },
 });

@@ -5,6 +5,7 @@ export type Tables = Database['public']['Tables'];
 export type UsersRow = Tables['users']['Row'];
 export type ClassroomsRow = Tables['classrooms']['Row'];
 export type QuizzesRow = Tables['quizzes']['Row'];
+export type QuizItemsRow = Tables['quiz_items']['Row'];
 export type InvitationLinkRow = Tables['invitation_links']['Row'];
 
 // Domain types for generated quiz
@@ -98,6 +99,29 @@ export async function aiGenerateQuizByLesson(lessonDescription: string, schema?:
   return data.quiz as GeneratedQuiz;
 }
 
+// Extended variant that allows specifying questionCount explicitly (used for improvements)
+export async function aiGenerateQuizByLessonV2(args: {
+  lessonDescription: string;
+  questionCount?: number;
+  schema?: object;
+  systemInstructions?: string;
+}): Promise<GeneratedQuiz> {
+  const { data: sessionRes } = await supabase.auth.getSession();
+  const token = sessionRes?.session?.access_token || SUPABASE_ANON_KEY;
+  const { data, error } = await supabase.functions.invoke('ai_generate_quiz', {
+    body: {
+      lessonDescription: args.lessonDescription,
+      questionCount: args.questionCount,
+      schema: args.schema,
+      systemInstructions: args.systemInstructions,
+    },
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (error) throw error;
+  if (!data?.quiz) throw new Error('Invalid Edge Function response: missing quiz');
+  return data.quiz as GeneratedQuiz;
+}
+
 export async function aiGenerateQuizBySubject(params: { subject: string; level: string; questionCount?: number }): Promise<GeneratedQuiz> {
   const { data: sessionRes } = await supabase.auth.getSession();
   const token = sessionRes?.session?.access_token || SUPABASE_ANON_KEY;
@@ -121,6 +145,17 @@ export async function createQuizWithItems(args: {
   const { quiz, owner_id, school_id, classroom_id } = args;
   const is_published = !!args.is_published;
 
+  console.log('🔍 createQuizWithItems called with:', {
+    quizTitle: quiz.title,
+    quizDescription: quiz.description,
+    questionsCount: quiz.questions?.length,
+    owner_id,
+    school_id,
+    classroom_id,
+    is_published
+  });
+
+  console.log('📝 Inserting quiz into database...');
   const { data: quizRow, error: quizErr } = await supabase
     .from('quizzes')
     .insert({
@@ -136,20 +171,40 @@ export async function createQuizWithItems(args: {
     })
     .select()
     .single();
-  if (quizErr) throw quizErr;
+    
+  if (quizErr) {
+    console.error('❌ Error inserting quiz:', quizErr);
+    throw quizErr;
+  }
+  
+  console.log('✅ Quiz inserted successfully:', quizRow);
 
+  console.log('📋 Preparing quiz items...');
   const quizItems = quiz.questions.map((q, index) => ({
-    quiz_id: (quizRow as any).id,
+    quiz_id: quizRow.id,
     school_id,
     classroom_id,
     question: q.question,
     choices: q.choices,
     answer_keys: q.answer_keys,
-    explanation: q.explanation,
+    explanation: q.explanation || null,
     order_index: index,
   }));
-  const { error: itemsErr } = await supabase.from('quiz_items').insert(quizItems as any[]);
-  if (itemsErr) throw itemsErr;
+  
+  console.log('📋 Quiz items prepared:', quizItems.length, 'items');
+  console.log('📝 Inserting quiz items into database...');
+  
+  const { error: itemsErr } = await supabase
+    .from('quiz_items')
+    .insert(quizItems);
+    
+  if (itemsErr) {
+    console.error('❌ Error inserting quiz items:', itemsErr);
+    console.error('❌ Quiz items that failed:', quizItems);
+    throw new Error(`Failed to save quiz questions: ${itemsErr.message}`);
+  }
+  
+  console.log('✅ Quiz items inserted successfully');
 
   return { quiz: quizRow as QuizzesRow };
 }

@@ -34,6 +34,7 @@ Deno.serve(async (req: Request) => {
     return new Response('ok', { headers: CORS });
   }
   const startedAt = Date.now();
+  const traceId = (globalThis.crypto?.randomUUID && globalThis.crypto.randomUUID()) || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
@@ -66,6 +67,7 @@ Deno.serve(async (req: Request) => {
     const subject = (body?.subject as string | undefined)?.trim();
     const level = (body?.level as string | undefined)?.trim();
     const questionCount = Math.min(Math.max(Number(body?.questionCount) || 10, 1), 10); // 1..10
+    const mode = ((body?.mode as string | undefined)?.toLowerCase() as 'generate' | 'improve' | undefined);
 
     if (!lessonDescription && !(subject && level)) {
       return json({ error: "Missing input: provide lessonDescription or (subject + level)" }, 400);
@@ -77,7 +79,9 @@ Deno.serve(async (req: Request) => {
     }
 
     // Build instructions and input prompt
-    const defaultInstructions = `Tu es un expert en pédagogie Montessori. Crée un quiz éducatif de ${questionCount} questions basé sur la description de leçon fournie. Chaque question doit avoir 4 choix de réponse (A, B, C, D) avec une seule bonne réponse.\n\n**Distribuez les bonnes réponses de manière aléatoire et de maniére à ce que chaque position (A, B, C, D) soit la réponse correcte au moins deux fois.**\n\nFormat de sortie strict en JSON : {"title": "Titre", "description": "Description", "questions": [{"question": "...", "choices": [{"id": "A", "text": "..."}, {"id": "B", "text": "..."}, {"id": "C", "text": "..."}, {"id": "D", "text": "..."}], "answer_keys": ["LETTRE_CORRECTE"], "explanation": "..."}]}.\n\nLe quiz doit être en français, avec des explications pédagogiques.`;
+    const defaultGenerate = `Tu es un expert en pédagogie Montessori. Crée un quiz éducatif de ${questionCount} questions basé sur la description de leçon fournie. Chaque question doit avoir 4 choix de réponse (A, B, C, D) avec une seule bonne réponse.\n\n**Distribuez les bonnes réponses de manière aléatoire et de maniére à ce que chaque position (A, B, C, D) soit la réponse correcte au moins deux fois.**\n\nFormat de sortie strict en JSON : {"title": "Titre", "description": "Description", "questions": [{"question": "...", "choices": [{"id": "A", "text": "..."}, {"id": "B", "text": "..."}, {"id": "C", "text": "..."}, {"id": "D", "text": "..."}], "answer_keys": ["LETTRE_CORRECTE"], "explanation": "..."}]}.\n\nLe quiz doit être en français, avec des explications pédagogiques.`;
+    const defaultImprove = `Tu es un expert en pédagogie Montessori. AMÉLIORE un quiz existant en appliquant précisément les retours fournis, tout en conservant ${questionCount} questions exactement.\n\nFormat de sortie strict en JSON : {"title": "Titre", "description": "Description", "questions": [{"question": "...", "choices": [{"id": "A", "text": "..."}, {"id": "B", "text": "..."}, {"id": "C", "text": "..."}, {"id": "D", "text": "..."}], "answer_keys": ["LETTRE_CORRECTE"], "explanation": "..."}]}.\n\nContraintes:\n- 4 choix (A, B, C, D) par question\n- 1 seule bonne réponse par question (answer_keys a 1 élément)\n- Français, avec explications pédagogiques concises`;
+    const defaultInstructions = mode === 'improve' ? defaultImprove : defaultGenerate;
     const systemInstructions = (body?.systemInstructions as string | undefined) || defaultInstructions;
 
     const schema = (body?.schema as any) || {
@@ -119,43 +123,58 @@ Deno.serve(async (req: Request) => {
       },
     };
 
+    // Pass through client-provided lessonDescription verbatim to preserve exact prompting intent
     const input = lessonDescription
-      ? `Sujet du cours: ${lessonDescription}`
+      ? lessonDescription
       : `Générer un quiz pour le sujet: ${subject} (niveau: ${level})`;
+    const inputBytes = new TextEncoder().encode(input).byteLength;
 
     // Call OpenAI
-    const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${openaiKey}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        temperature: 0.3,
-        max_tokens: 1500,
-        messages: [
-          { role: "system", content: systemInstructions },
-          { role: "user", content: input },
-        ],
-        response_format: { type: "json_object" },
-      }),
-    });
+    async function callOpenAI(responseFormat: any) {
+      return fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${openaiKey}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          temperature: 0.3,
+          max_tokens: 2200,
+          messages: [
+            { role: "system", content: systemInstructions },
+            { role: "user", content: input },
+          ],
+          response_format: responseFormat,
+        }),
+      });
+    }
+
+    // Try JSON Schema first (stricter), fallback to JSON Object on 400
+    let openaiRes = await callOpenAI(
+      schema
+        ? { type: "json_schema", json_schema: { name: "quiz_schema", schema, strict: true } }
+        : { type: "json_object" }
+    );
+    if (!openaiRes.ok && openaiRes.status === 400 && schema) {
+      console.warn("OpenAI 400 with json_schema, retrying with json_object", { trace_id: traceId });
+      openaiRes = await callOpenAI({ type: "json_object" });
+    }
 
     const raw = await openaiRes.text();
     if (!openaiRes.ok) {
-      console.error("ai_generate_quiz OpenAI error", { status: openaiRes.status, raw: safeTrunc(raw, 300) });
-      console.log("ai_generate_quiz", { user_id: authUser.id, took_ms: Date.now() - startedAt, status: openaiRes.status });
-      return json({ error: `OpenAI error ${openaiRes.status}`, details: safeTrunc(raw) }, 502);
+      console.error("ai_generate_quiz OpenAI error", { trace_id: traceId, status: openaiRes.status, raw: safeTrunc(raw, 300) });
+      console.log("ai_generate_quiz", { trace_id: traceId, user_id: authUser.id, took_ms: Date.now() - startedAt, status: openaiRes.status });
+      return json({ error: `OpenAI error ${openaiRes.status}`, details: safeTrunc(raw), trace_id: traceId }, 502);
     }
 
     let parsed: any;
     try {
       parsed = JSON.parse(raw);
     } catch (e) {
-      console.error("ai_generate_quiz invalid JSON envelope", { raw: safeTrunc(raw, 300) });
-      console.log("ai_generate_quiz", { user_id: authUser.id, took_ms: Date.now() - startedAt, status: openaiRes.status });
-      return json({ error: "Invalid JSON from OpenAI", details: safeTrunc(raw) }, 502);
+      console.error("ai_generate_quiz invalid JSON envelope", { trace_id: traceId, raw: safeTrunc(raw, 300) });
+      console.log("ai_generate_quiz", { trace_id: traceId, user_id: authUser.id, took_ms: Date.now() - startedAt, status: openaiRes.status });
+      return json({ error: "Invalid JSON from OpenAI", details: safeTrunc(raw), trace_id: traceId }, 502);
     }
 
     const content: string = parsed?.choices?.[0]?.message?.content ?? "";
@@ -170,9 +189,9 @@ Deno.serve(async (req: Request) => {
     try {
       quiz = JSON.parse(content);
     } catch (e) {
-      console.error("ai_generate_quiz quiz parsing failed", { err: (e as Error).message, content: safeTrunc(content, 300) });
-      console.log("ai_generate_quiz", { user_id: authUser.id, took_ms: Date.now() - startedAt, status: openaiRes.status });
-      return json({ error: "Quiz JSON parsing failed", raw: safeTrunc(content) }, 502);
+      console.error("ai_generate_quiz quiz parsing failed", { trace_id: traceId, err: (e as Error).message, content: safeTrunc(content, 300) });
+      console.log("ai_generate_quiz", { trace_id: traceId, user_id: authUser.id, took_ms: Date.now() - startedAt, status: openaiRes.status });
+      return json({ error: "Quiz JSON parsing failed", raw: safeTrunc(content), trace_id: traceId }, 502);
     }
 
     // Minimal validation
@@ -198,18 +217,21 @@ Deno.serve(async (req: Request) => {
     // Lightweight log (best effort)
     try {
       console.log("ai_generate_quiz", {
+        trace_id: traceId,
         user_id: authUser.id,
         took_ms: Date.now() - startedAt,
         status: openaiRes.status,
         subject,
         level,
         questionCount,
+        input_bytes: inputBytes,
+        mode: mode || 'auto',
       });
     } catch (_) {}
 
     return json({ quiz }, 200);
   } catch (e) {
-    console.error("ai_generate_quiz unexpected", { err: e instanceof Error ? e.message : String(e) });
-    return json({ error: "Unexpected error", details: e instanceof Error ? e.message : String(e) }, 500);
+    console.error("ai_generate_quiz unexpected", { trace_id: traceId, err: e instanceof Error ? e.message : String(e) });
+    return json({ error: "Unexpected error", details: e instanceof Error ? e.message : String(e), trace_id: traceId }, 500);
   }
 });

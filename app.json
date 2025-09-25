@@ -35,7 +35,10 @@
     "web": {},
     "scheme": "futurgenie",
     "linking": {
-      "prefixes": ["futurgenie://", "https://app.votredomaine"],
+      "prefixes": [
+        "futurgenie://",
+        "https://app.votredomaine"
+      ],
       "config": {
         "screens": {
           "Auth": {
@@ -63,6 +66,7 @@
     },
     "updates": {
       "url": "https://u.expo.dev/e1949205-46da-4987-948d-11ab3798da94"
-    }
+    },
+    "owner": "rafik-kellou"
   }
 }

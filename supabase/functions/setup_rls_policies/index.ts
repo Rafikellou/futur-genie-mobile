@@ -29,6 +29,9 @@ Deno.serve(async (req: Request) => {
       `DROP POLICY IF EXISTS "quizzes_read_school" ON quizzes;`,
       `DROP POLICY IF EXISTS "quizzes_manage_teacher" ON quizzes;`,
       `DROP POLICY IF EXISTS "quizzes_read_published_parents" ON quizzes;`,
+      `DROP POLICY IF EXISTS "quiz_items_read_school" ON quiz_items;`,
+      `DROP POLICY IF EXISTS "quiz_items_manage_teacher" ON quiz_items;`,
+      `DROP POLICY IF EXISTS "quiz_items_read_published_parents" ON quiz_items;`,
       `DROP POLICY IF EXISTS "quiz_results_read_own" ON quiz_results;`,
       `DROP POLICY IF EXISTS "quiz_results_read_teacher" ON quiz_results;`,
       `DROP POLICY IF EXISTS "quiz_results_read_director" ON quiz_results;`,
@@ -170,6 +173,54 @@ Deno.serve(async (req: Request) => {
           WHERE users.id = auth.uid()
           AND users.role = 'PARENT'
           AND users.classroom_id = quizzes.classroom_id
+        )
+      );
+      `,
+
+      // QUIZ_ITEMS table policies
+      `
+      CREATE POLICY "quiz_items_read_school" ON quiz_items
+      FOR SELECT USING (
+        EXISTS (
+          SELECT 1 FROM users u
+          JOIN classrooms c ON c.school_id = u.school_id
+          WHERE u.id = auth.uid()
+          AND c.id = quiz_items.classroom_id
+        )
+      );
+      `,
+      
+      `
+      CREATE POLICY "quiz_items_manage_teacher" ON quiz_items
+      FOR ALL USING (
+        EXISTS (
+          SELECT 1 FROM users
+          WHERE users.id = auth.uid()
+          AND (
+            users.role = 'TEACHER' AND users.classroom_id = quiz_items.classroom_id
+            OR users.role = 'DIRECTOR' AND EXISTS (
+              SELECT 1 FROM classrooms
+              WHERE classrooms.id = quiz_items.classroom_id
+              AND classrooms.school_id = users.school_id
+            )
+          )
+        )
+      );
+      `,
+
+      `
+      CREATE POLICY "quiz_items_read_published_parents" ON quiz_items
+      FOR SELECT USING (
+        EXISTS (
+          SELECT 1 FROM quizzes q
+          WHERE q.id = quiz_items.quiz_id
+          AND q.is_published = true
+          AND EXISTS (
+            SELECT 1 FROM users
+            WHERE users.id = auth.uid()
+            AND users.role = 'PARENT'
+            AND users.classroom_id = q.classroom_id
+          )
         )
       );
       `,

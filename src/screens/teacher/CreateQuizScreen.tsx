@@ -16,7 +16,8 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../providers/AuthProvider';
-import { aiGenerateQuizByLesson, createQuizWithItems, type GeneratedQuiz } from '../../lib/db';
+import { aiGenerateQuizByLesson, aiGenerateQuizByLessonV2, createQuizWithItems, type GeneratedQuiz } from '../../lib/db';
+import { supabase } from '../../lib/supabase';
 import { EditQuizModal } from './EditQuizModal';
 import { colors, gradients } from '../../theme/colors';
 
@@ -43,7 +44,7 @@ interface Message {
 }
 
 export function CreateQuizScreen() {
-  const { profile } = useAuth();
+  const { profile, user, loading, refreshProfile } = useAuth();
   const [messages, setMessages] = React.useState<Message[]>([]);
   const [inputText, setInputText] = React.useState('');
   const [isGenerating, setIsGenerating] = React.useState(false);
@@ -141,15 +142,18 @@ export function CreateQuizScreen() {
         }
       };
 
-      const instructions = `Tu es un expert en pédagogie Montessori. Crée un quiz éducatif de 10 questions basé sur la description de leçon fournie. Chaque question doit avoir 4 choix de réponse (A, B, C, D) avec une seule bonne réponse.
+      const instructions = `Tu es un expert Montessori. L'utilisateur a besoin de toi pour construire un quiz de 10 questions sur la leçon du jour.
 
-**Distribuez les bonnes réponses de manière aléatoire et de maniére à ce que chaque position (A, B, C, D) soit la réponse correcte au moins deux fois sur les 10 questions.**
+Respecte STRICTEMENT le format JSON suivant:
+{"title": "Titre", "description": "Description", "questions": [{"question": "...", "choices": [{"id": "A", "text": "..."}, {"id": "B", "text": "..."}, {"id": "C", "text": "..."}, {"id": "D", "text": "..."}], "answer_keys": ["LETTRE_CORRECTE"], "explanation": "..."}]}.
 
-Format de sortie strict en JSON : {"title": "Titre", "description": "Description", "questions": [{"question": "...", "choices": [{"id": "A", "text": "..."}, {"id": "B", "text": "..."}, {"id": "C", "text": "..."}, {"id": "D", "text": "..."}], "answer_keys": ["LETTRE_CORRECTE"], "explanation": "..."}]}.
+Contraintes:
+- 10 questions exactement
+- 4 choix (A, B, C, D) par question
+- 1 seule bonne réponse par question (answer_keys a 1 élément)
+- Français, avec explications pédagogiques concises`;
 
-Le quiz doit être en français, avec des explications pédagogiques.`;
-
-      const input = `Sujet du cours: ${lessonDescription.trim()}`;
+      const input = `Voilà la leçon demandée par l'utilisateur: ${lessonDescription.trim()}`;
 
       // Appel via DAO (Edge Function côté serveur)
       let retryCount = 0;
@@ -158,7 +162,12 @@ Le quiz doit être en français, avec des explications pédagogiques.`;
       while (retryCount < maxRetries) {
         try {
           try {
-            const quiz = await aiGenerateQuizByLesson(lessonDescription, quizSchema as any, instructions);
+            const quiz = await aiGenerateQuizByLessonV2({
+              lessonDescription: input,
+              questionCount: 10,
+              schema: quizSchema as any,
+              systemInstructions: instructions,
+            });
             console.log('Edge Function quiz payload:', quiz);
 
             // Vérifier que le quiz a bien 10 questions
@@ -193,12 +202,10 @@ Le quiz doit être en français, avec des explications pédagogiques.`;
             return quiz as GeneratedQuiz;
           } catch (jsonError) {
             console.error(`Edge Function payload error (attempt ${retryCount + 1}):`, jsonError);
-            
             if (retryCount < maxRetries - 1) {
-              // Wait for 1 second before retrying
               await new Promise(resolve => setTimeout(resolve, 1000));
             } else {
-              throw new Error('Failed to parse JSON response after multiple attempts');
+              throw jsonError;
             }
           }
         } catch (error) {
@@ -244,7 +251,13 @@ Le quiz doit être en français, avec des explications pédagogiques.`;
       if (generatedQuiz) {
         // If we already have a quiz, treat this as improvement feedback
         addMessage('Je travaille sur l\'amélioration du quiz selon vos demandes...', false);
-        // TODO: Implement quiz improvement logic
+        const improved = await improveQuiz(message, generatedQuiz);
+        if (improved) {
+          setGeneratedQuiz(improved);
+          addMessage(`J'ai mis à jour le quiz "${improved.title}" en appliquant vos modifications.`, false, improved);
+        } else {
+          addMessage(`Je n'ai pas pu améliorer le quiz pour cette demande. Essayez de préciser davantage vos instructions.`, false);
+        }
       } else {
         // Generate new quiz
         addMessage('Je génère un quiz basé sur votre leçon...', false);
@@ -267,22 +280,247 @@ Le quiz doit être en français, avec des explications pédagogiques.`;
     }
   };
 
+  // Helper to measure how many question statements remained identical
+  const countUnchangedQuestions = (a: GeneratedQuiz, b: GeneratedQuiz) => {
+    const len = Math.min(a.questions.length, b.questions.length);
+    let same = 0;
+    for (let i = 0; i < len; i++) {
+      const qa = (a.questions[i].question || '').replace(/\s+/g, ' ').trim().toLowerCase();
+      const qb = (b.questions[i].question || '').replace(/\s+/g, ' ').trim().toLowerCase();
+      if (qa === qb) same++;
+    }
+    return same;
+  };
+
+  const improveQuiz = async (feedback: string, current: GeneratedQuiz): Promise<GeneratedQuiz | null> => {
+    try {
+      const questionCount = Array.isArray(current.questions) ? current.questions.length : 10;
+      // Build a schema aligned with current quiz length
+      const improvementSchema = {
+        type: 'object',
+        additionalProperties: false,
+        required: ['title', 'description', 'questions'],
+        properties: {
+          title: { type: 'string' },
+          description: { type: 'string' },
+          questions: {
+            type: 'array',
+            minItems: questionCount,
+            maxItems: questionCount,
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['question', 'choices', 'answer_keys'],
+              properties: {
+                question: { type: 'string' },
+                choices: {
+                  type: 'array',
+                  minItems: 4,
+                  maxItems: 4,
+                  items: {
+                    type: 'object',
+                    additionalProperties: false,
+                    required: ['id', 'text'],
+                    properties: {
+                      id: { type: 'string', enum: ['A', 'B', 'C', 'D'] },
+                      text: { type: 'string' },
+                    },
+                  },
+                },
+                answer_keys: { type: 'array', minItems: 1, maxItems: 1, items: { type: 'string', enum: ['A', 'B', 'C', 'D'] } },
+                explanation: { type: 'string' },
+              },
+            },
+          },
+        },
+      } as const;
+
+      const baseSystemInstructions = `Tu es un expert Montessori.
+
+Respecte STRICTEMENT le format JSON suivant:
+{"title": "Titre", "description": "Description", "questions": [{"question": "...", "choices": [{"id": "A", "text": "..."}, {"id": "B", "text": "..."}, {"id": "C", "text": "..."}, {"id": "D", "text": "..."}], "answer_keys": ["LETTRE_CORRECTE"], "explanation": "..."}]}.
+
+Contraintes:
+- ${questionCount} questions exactement (NE CHANGE PAS ce nombre)
+- 4 choix (A, B, C, D) par question
+- 1 seule bonne réponse par question (answer_keys a 1 élément)
+- N'ajoute PAS d'autres champs que ceux listés
+- Français, avec explications pédagogiques concises`;
+
+      const fullContext = `Tu as proposé le quiz ci-dessous, et l'utilisateur te demande de faire la modification suivante: ${feedback}.
+
+Voici le quiz que tu avais proposé initialement (en JSON):
+${JSON.stringify(current)}
+`;
+
+      const condensedQuiz = {
+        title: current.title,
+        description: current.description,
+        questions: current.questions.map(q => ({ question: q.question, answer_keys: q.answer_keys }))
+      };
+      const condensedContext = `Tu as proposé le quiz ci-dessous, et l'utilisateur te demande de faire la modification suivante: ${feedback}.
+
+Pour référence, voici un RÉSUMÉ du quiz (sans les choix pour réduire la taille):
+${JSON.stringify(condensedQuiz)}
+
+Re-génère les 4 choix (A, B, C, D) pour chaque question en respectant le format.`;
+
+      let retry = 0;
+      const maxRetries = 2;
+      while (retry < maxRetries) {
+        try {
+          const forceChanges = retry > 0;
+          const systemInstructions = baseSystemInstructions + (forceChanges
+            ? `\nExigence supplémentaire (2e tentative): modifie substantiellement AU MOINS ${Math.ceil(questionCount * 0.7)} énoncés de questions. N'utilise pas les mêmes formulations.`
+            : ``);
+
+          const quiz = await aiGenerateQuizByLessonV2({
+            lessonDescription: retry === 0 ? fullContext : condensedContext,
+            questionCount,
+            schema: improvementSchema as any,
+            systemInstructions,
+          });
+
+          // Normalize shapes like in generateQuiz
+          quiz.questions = quiz.questions.map((q: any) => {
+            if (q.choices && typeof q.choices === 'object' && !Array.isArray(q.choices)) {
+              q.choices = Object.entries(q.choices).map(([id, text]) => ({ id, text: text as string }));
+            }
+            if (!Array.isArray(q.choices)) q.choices = [];
+            if (!Array.isArray(q.answer_keys)) q.answer_keys = [];
+            return q;
+          });
+
+          // If too many questions stayed identical, trigger a stricter retry once
+          const unchanged = countUnchangedQuestions(current, quiz as GeneratedQuiz);
+          const unchangedRatio = unchanged / questionCount;
+          if (unchangedRatio > 0.4 && retry < maxRetries - 1) {
+            console.warn(`Improvement insufficient (${unchanged}/${questionCount} unchanged). Retrying with stricter instructions...`);
+            retry++;
+            continue;
+          }
+
+          return quiz as GeneratedQuiz;
+        } catch (e) {
+          console.error('Quiz improvement failed', e);
+          const status = (e as any)?.context?.response?.status ?? (e as any)?.status;
+          const details = (e as any)?.context?.body ?? (e as any)?.message ?? 'Erreur inconnue';
+          addMessage(`Erreur amélioration (${status ?? 'n/a'}): ${details}`, false);
+          if (retry < maxRetries - 1) {
+            await new Promise(r => setTimeout(r, 1000));
+            retry++;
+          } else {
+            throw e;
+          }
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error('Erreur amélioration quiz:', error);
+      const status = (error as any)?.context?.response?.status ?? (error as any)?.status;
+      const details = (error as any)?.context?.body ?? (error as any)?.message ?? 'Erreur inconnue';
+      addMessage(`Amélioration interrompue (${status ?? 'n/a'}): ${details}`, false);
+      Alert.alert('Erreur', 'Échec de l\'amélioration du quiz. Veuillez réessayer.');
+      return null;
+    }
+  };
+
+  // Test function to check database connection and permissions
+  const testDatabaseConnection = async () => {
+    console.log('🧪 Testing database connection...');
+    try {
+      // Test basic connection
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      console.log('👤 User data:', userData);
+      if (userError) console.error('❌ User error:', userError);
+
+      // Test session data
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      console.log('🔑 Session data:', {
+        hasSession: !!sessionData?.session,
+        userId: sessionData?.session?.user?.id,
+        email: sessionData?.session?.user?.email,
+        appMetadata: sessionData?.session?.user?.app_metadata,
+        userMetadata: sessionData?.session?.user?.user_metadata
+      });
+
+      // Test quiz table access
+      const { data: quizData, error: quizError } = await supabase
+        .from('quizzes')
+        .select('id')
+        .limit(1);
+      console.log('📝 Quiz table access:', { data: quizData, error: quizError });
+
+      // Test quiz_items table access
+      const { data: itemsData, error: itemsError } = await supabase
+        .from('quiz_items')
+        .select('id')
+        .limit(1);
+      console.log('📋 Quiz_items table access:', { data: itemsData, error: itemsError });
+
+      // Test profile data from AuthProvider
+      console.log('👤 AuthProvider data:', {
+        hasProfile: !!profile,
+        profileId: profile?.id,
+        profileRole: profile?.role,
+        school_id: profile?.school_id,
+        classroom_id: profile?.classroom_id,
+        loading: loading,
+        hasUser: !!user,
+        userId: user?.id
+      });
+
+      // Try to fetch profile manually if missing
+      if (!profile && user?.id) {
+        console.log('🔄 Attempting to fetch profile manually...');
+        const { data: profileData, error: profileError } = await supabase
+          .rpc('get_user_profile', { user_id_input: user.id });
+        console.log('👤 Manual profile fetch:', { data: profileData, error: profileError });
+      }
+
+    } catch (error) {
+      console.error('❌ Database connection test failed:', error);
+    }
+  };
+
   const handleSaveQuiz = async (quiz?: GeneratedQuiz, isPublished: boolean = false, actionType: 'draft' | 'publish' = 'draft') => {
+    console.log('🔍 handleSaveQuiz called with:', { 
+      hasQuiz: !!quiz, 
+      quizTitle: quiz?.title, 
+      isPublished, 
+      actionType,
+      profileId: profile?.id,
+      schoolId: profile?.school_id,
+      classroomId: profile?.classroom_id
+    });
+
     if (!quiz || !profile?.id) {
+      console.error('❌ Missing quiz or profile:', { hasQuiz: !!quiz, hasProfile: !!profile?.id });
       Alert.alert('Erreur', 'Impossible de sauvegarder le quiz');
+      return;
+    }
+
+    if (!profile.school_id || !profile.classroom_id) {
+      console.error('❌ Missing school_id or classroom_id:', { 
+        schoolId: profile.school_id, 
+        classroomId: profile.classroom_id 
+      });
+      Alert.alert('Erreur', 'Informations de classe ou d\'école manquantes. Veuillez vous reconnecter.');
       return;
     }
 
     setIsSaving(true);
     try {
+      console.log('🚀 Attempting to save quiz...');
       // Create quiz and items via DAO
       await createQuizWithItems({
         quiz,
         owner_id: profile.id,
-        school_id: profile.school_id!,
-        classroom_id: profile.classroom_id!,
+        school_id: profile.school_id,
+        classroom_id: profile.classroom_id,
         is_published: isPublished,
       });
+      console.log('✅ Quiz saved successfully');
 
       // Custom success messages based on action type
       const successMessages = {
@@ -303,13 +541,51 @@ Le quiz doit être en français, avec des explications pédagogiques.`;
       setGeneratedQuiz(null);
       
     } catch (error: any) {
-      console.error('Erreur sauvegarde:', error);
+      console.error('❌ Erreur sauvegarde complète:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        status: error.status,
+        statusText: error.statusText
+      });
+      
       const errorMessage = error.message || 'Erreur inconnue';
       Alert.alert('Erreur', `Impossible de sauvegarder le quiz: ${errorMessage}`);
       addMessage(`❌ Erreur lors de la sauvegarde: ${errorMessage}`, false);
     } finally {
+      console.log('🏁 handleSaveQuiz completed, setting isSaving to false');
       setIsSaving(false);
     }
+  };
+
+  const resetConversation = () => {
+    Alert.alert(
+      'Réinitialiser',
+      'Effacer cette proposition et reprendre à zéro ? Ceci supprimera la demande et la proposition actuelle (non sauvegardée).',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Oui, effacer',
+          style: 'destructive',
+          onPress: () => {
+            // Recréer le message d'accueil initial et vider l'état courant
+            const welcomeMessage: Message = {
+              id: 'welcome-message',
+              text: 'Bonjour ! Je suis votre assistant IA pour créer des quiz. Donnez-moi la leçon du jour ou le sujet sur lequel vous souhaitez créer un quiz, et je génèrerai automatiquement 10 questions adaptées pour vos élèves.',
+              isUser: false,
+              timestamp: new Date(),
+            };
+            setMessages([welcomeMessage]);
+            setGeneratedQuiz(null);
+            setEditingQuiz(null);
+            setInputText('');
+            setShowScrollArrow(false);
+          }
+        }
+      ]
+    );
   };
 
   const formatTime = (date: Date) => {
@@ -450,6 +726,40 @@ Le quiz doit être en français, avec des explications pédagogiques.`;
                             <Text style={styles.actionButtonText}>Publier</Text>
                           </TouchableOpacity>
                         </LinearGradient>
+                        
+                        {/* Test Database Connection - temporary debug button */}
+                        <TouchableOpacity 
+                          style={[styles.actionButton, { backgroundColor: '#3b82f6' }]}
+                          onPress={testDatabaseConnection}
+                        >
+                          <Ionicons name="bug-outline" size={18} color="#fff" />
+                          <Text style={styles.actionButtonText}>Test DB</Text>
+                        </TouchableOpacity>
+                        
+                        {/* Refresh Profile - temporary debug button */}
+                        <TouchableOpacity 
+                          style={[styles.actionButton, { backgroundColor: '#10b981' }]}
+                          onPress={async () => {
+                            console.log('🔄 Forcing profile refresh...');
+                            await refreshProfile();
+                            console.log('✅ Profile refresh completed');
+                          }}
+                        >
+                          <Ionicons name="refresh-outline" size={18} color="#fff" />
+                          <Text style={styles.actionButtonText}>Refresh Profile</Text>
+                        </TouchableOpacity>
+                        
+                        {/* Reset / Start Over - demarcated section */}
+                        <View style={styles.resetSection}>
+                          <TouchableOpacity 
+                            style={styles.resetButton}
+                            onPress={resetConversation}
+                            disabled={isGenerating}
+                          >
+                            <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                            <Text style={styles.resetButtonText}>Effacer et recommencer</Text>
+                          </TouchableOpacity>
+                        </View>
                       </View>
                     </View>
                   </View>
@@ -782,6 +1092,29 @@ const styles = StyleSheet.create({
   },
   actionButtonText: {
     color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  resetSection: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.border.primary,
+  },
+  resetButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#ef4444',
+    backgroundColor: 'transparent',
+    gap: 8,
+  },
+  resetButtonText: {
+    color: '#ef4444',
     fontSize: 15,
     fontWeight: '600',
   },

@@ -8,8 +8,7 @@ import { colors } from '../../theme/colors';
 // Minimal types to avoid circular imports
 type AuthStackParamList = {
   InviteEntry: { token?: string; url?: string };
-  ParentInvitationSignUp: { token: string };
-  TeacherInvitationSignUp: { token: string };
+  UnifiedInvitationSignUp: { token: string };
   Login: undefined;
 };
 
@@ -64,13 +63,8 @@ export function InviteEntryScreen() {
           return;
         }
 
-        const intended = result.invitation.role;
         const t = result.invitation.token;
-        if (intended === 'TEACHER') {
-          navigation.navigate('TeacherInvitationSignUp', { token: t });
-        } else {
-          navigation.navigate('ParentInvitationSignUp', { token: t });
-        }
+        navigation.navigate('UnifiedInvitationSignUp', { token: t });
       } catch (e) {
         setError("Erreur lors de la validation du lien d'invitation");
       } finally {

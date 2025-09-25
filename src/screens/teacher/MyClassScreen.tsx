@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../providers/AuthProvider';
 import { supabase } from '../../lib/supabase';
 import { ensureParentInvitationLink, generateInvitationUrl, getClassroomById } from '../../lib/db';
+import { generateInvitationInstructionsShort } from '../../utils/invitationText';
 import { Loader } from '../../components/common/Loader';
 import { ErrorView } from '../../components/common/ErrorView';
 import { colors } from '../../theme/colors';
@@ -229,6 +230,16 @@ export function MyClassScreen() {
     Alert.alert('Copié', 'Le lien d\'invitation a été copié dans le presse-papiers');
   };
 
+  const copyInvitationInstructions = async () => {
+    if (!invitationLink) return;
+    
+    const schoolName = profile?.school_name || 'Votre école';
+    const className = classroomInfo?.name;
+    const instructions = generateInvitationInstructionsShort(invitationLink.token, schoolName, className, 'PARENT');
+    await Clipboard.setStringAsync(instructions);
+    Alert.alert('Instructions copiées', 'Instructions d\'invitation parents copiées dans le presse-papiers');
+  };
+
   const shareInvitationLink = async () => {
     if (!invitationLink || !classroomInfo) return;
     
@@ -347,11 +358,11 @@ export function MyClassScreen() {
           
           <View style={styles.linkActions}>
             <TouchableOpacity 
-              style={styles.actionButton} 
-              onPress={copyInvitationLink}
+              style={[styles.actionButton, { backgroundColor: colors.accent.pink }]} 
+              onPress={copyInvitationInstructions}
             >
-              <Ionicons name="copy-outline" size={20} color={colors.brand.primary} />
-              <Text style={styles.actionButtonText}>Copier</Text>
+              <Ionicons name="document-text-outline" size={20} color="white" />
+              <Text style={[styles.actionButtonText, { color: 'white' }]}>Instructions</Text>
             </TouchableOpacity>
             
             <TouchableOpacity 

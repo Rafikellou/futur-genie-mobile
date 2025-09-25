@@ -182,6 +182,44 @@ export interface Database {
           quiz_duration_seconds?: number | null;
         };
       };
+      quiz_items: {
+        Row: {
+          id: string;
+          quiz_id: string;
+          school_id: string;
+          classroom_id: string;
+          question: string;
+          choices: any;
+          answer_keys: string[];
+          explanation: string | null;
+          order_index: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          quiz_id: string;
+          school_id: string;
+          classroom_id: string;
+          question: string;
+          choices: any;
+          answer_keys: string[];
+          explanation?: string | null;
+          order_index: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          quiz_id?: string;
+          school_id?: string;
+          classroom_id?: string;
+          question?: string;
+          choices?: any;
+          answer_keys?: string[];
+          explanation?: string | null;
+          order_index?: number;
+          created_at?: string;
+        };
+      };
       invitation_links: {
         Row: {
           id: string;
